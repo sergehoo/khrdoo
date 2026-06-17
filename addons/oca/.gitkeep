@@ -1,0 +1,2 @@
+# Emplacement des modules OCA (peuplé par scripts/fetch-oca.sh).
+# Ce fichier garantit que le dossier existe dans le dépôt (addons_path).

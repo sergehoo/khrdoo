@@ -2,7 +2,6 @@
 .env
 *.env
 !.env.example
-config/odoo/odoo.conf
 config/keycloak/realm-kaydan.resolved.json
 
 # Données / sauvegardes
