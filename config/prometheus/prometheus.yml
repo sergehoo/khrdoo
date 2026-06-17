@@ -29,11 +29,9 @@ scrape_configs:
     static_configs:
       - targets: ["postgres-exporter:9187"]
 
-  # Métriques Traefik (déploiement autonome ; sous Dokploy adapter la cible)
-  - job_name: traefik
-    static_configs:
-      - targets: ["kaydan-traefik:8080"]
-    metrics_path: /metrics
+  # Traefik est géré par Dokploy (hors de cette stack). Pour superviser ses
+  # métriques, activez l'endpoint Prometheus dans Dokploy/Traefik et ajoutez ici
+  # une cible joignable (nom du conteneur Traefik de Dokploy + son réseau).
 
   # Keycloak est externe : pour superviser ses métriques, ajoutez ici une cible
   # pointant vers l'instance existante (ex. sso.kaydan.example.com:9000) si elle

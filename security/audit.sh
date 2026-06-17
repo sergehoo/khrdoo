@@ -24,6 +24,7 @@ echo "═══ Fail2Ban ═══"
 chk "Service Fail2Ban actif"            "systemctl is-active --quiet fail2ban"
 chk "Jail sshd présente"                "fail2ban-client status sshd"
 chk "Jail odoo-auth présente"           "fail2ban-client status odoo-auth"
+chk "Jail traefik-auth présente"        "fail2ban-client status traefik-auth"
 
 echo "═══ Mises à jour automatiques ═══"
 chk "unattended-upgrades actif"         "systemctl is-active --quiet unattended-upgrades"

@@ -9,8 +9,9 @@
 #  Pré-requis   : .env renseigné · scripts/tune.sh exécuté (génère odoo.conf)
 #                 docker network create dokploy-network  (créé par Dokploy)
 #
-#  NOTE Dokploy : Traefik est fourni par Dokploy. Aucun service Traefik ici.
-#                 Pour un déploiement SANS Dokploy, voir docker-compose.traefik.yml
+#  NOTE Dokploy : Traefik est entièrement géré par Dokploy. Aucun service ni
+#                 fichier de config Traefik ici — seuls les LIBELLÉS (labels)
+#                 des services décrivent le routage à la Traefik de Dokploy.
 # =============================================================================
 name: kaydan-erp
 
@@ -258,6 +259,7 @@ services:
       - traefik.http.routers.minio-api.tls=true
       - traefik.http.routers.minio-api.tls.certresolver=letsencrypt
       - traefik.http.routers.minio-api.service=minio-api
+      - traefik.http.routers.minio-api.middlewares=kaydan-sec@docker
       - traefik.http.services.minio-api.loadbalancer.server.port=9000
       # Console
       - traefik.http.routers.minio-console.rule=Host(`minio.${DOMAIN}`)
