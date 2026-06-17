@@ -1,0 +1,32 @@
+# Secrets — NE JAMAIS committer
+.env
+*.env
+!.env.example
+config/traefik/acme.json
+config/odoo/odoo.conf
+config/keycloak/realm-kaydan.resolved.json
+
+# Données / sauvegardes
+backups/*
+!backups/.gitkeep
+*.dump
+*.sql.gz
+*.tar.gz
+*.tar.gz.gpg
+*.gpg
+
+# Odoo / Python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.log
+
+# OS / IDE
+.DS_Store
+.idea/
+*.swp
+.claude/
+
+# Fichiers Markdown (documentation exclue du dépôt)
+*.md

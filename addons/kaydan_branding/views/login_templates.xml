@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Logo + accroche Kaydan au-dessus du formulaire de connexion -->
+    <template id="kaydan_login_brand" inherit_id="web.login" name="Kaydan — marque login">
+        <xpath expr="//form[hasclass('oe_login_form')]" position="before">
+            <div class="kd-login-brand text-center mb-4">
+                <img src="/kaydan_branding/static/src/img/logo_white.svg"
+                     alt="Kaydan ERP" class="kd-login-logo"/>
+                <div class="kd-login-tagline">Plateforme de gestion intégrée</div>
+            </div>
+        </xpath>
+    </template>
+</odoo>

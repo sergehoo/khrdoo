@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Couleurs de la mise en page documentaire (devis, factures, rapports PDF)
+         de la société principale : noir + jaune orangé Kaydan. -->
+    <record id="base.main_company" model="res.company">
+        <field name="primary_color">#F7A600</field>
+        <field name="secondary_color">#111111</field>
+    </record>
+</odoo>

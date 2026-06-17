@@ -1,0 +1,48 @@
+// =============================================================================
+//  Kaydan ERP — Thème de la page de connexion (corporate noir / jaune orangé)
+// =============================================================================
+$kd-yellow: #F7A600;
+$kd-yellow-dark: #E8930A;
+$kd-black: #111111;
+
+.o_login_page {
+    min-height: 100vh;
+    background: radial-gradient(circle at 25% 15%, #1f1f1f 0%, #0b0b0b 70%) !important;
+    display: flex;
+    align-items: center;
+
+    .card {
+        background: #ffffff;
+        border: 0;
+        border-radius: 16px;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+    }
+
+    .kd-login-brand { margin-top: .5rem; }
+    .kd-login-logo  { max-width: 220px; height: auto; }
+    .kd-login-tagline {
+        color: $kd-yellow;
+        font-size: .80rem;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        margin-top: .65rem;
+    }
+
+    .btn-primary {
+        background-color: $kd-yellow;
+        border-color: $kd-yellow;
+        color: $kd-black;
+        font-weight: 600;
+        &:hover, &:focus {
+            background-color: $kd-yellow-dark;
+            border-color: $kd-yellow-dark;
+            color: $kd-black;
+        }
+    }
+
+    a { color: $kd-yellow-dark; }
+
+    // Masque la marque Odoo par défaut sur la page de connexion
+    a[href*="odoo.com"],
+    .o_database_list .text-muted a { display: none !important; }
+}

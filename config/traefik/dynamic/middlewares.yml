@@ -1,0 +1,60 @@
+# =============================================================================
+#  Traefik — Configuration dynamique (middlewares partagés)
+#  Chargée par le fournisseur "file". Référence : nom@file (ex: secure-headers@file)
+# =============================================================================
+http:
+  middlewares:
+
+    # --- En-têtes de sécurité (Phase 6) -------------------------------------
+    secure-headers:
+      headers:
+        stsSeconds: 31536000
+        stsIncludeSubdomains: true
+        stsPreload: true
+        forceSTSHeader: true
+        contentTypeNosniff: true
+        browserXssFilter: true
+        customFrameOptionsValue: SAMEORIGIN
+        referrerPolicy: strict-origin-when-cross-origin
+        permissionsPolicy: "geolocation=(), microphone=(), camera=()"
+        customResponseHeaders:
+          X-Robots-Tag: "noindex,nofollow,noarchive"
+          Server: ""               # masque la bannière serveur
+        contentSecurityPolicy: >-
+          default-src 'self';
+          script-src 'self' 'unsafe-inline' 'unsafe-eval';
+          style-src 'self' 'unsafe-inline';
+          img-src 'self' data: blob: https:;
+          font-src 'self' data:;
+          connect-src 'self' https: wss:;
+          frame-ancestors 'self';
+          base-uri 'self';
+          form-action 'self';
+          object-src 'none'
+
+    # --- Limitation de débit (anti-bruteforce) ------------------------------
+    rate-limit:
+      rateLimit:
+        average: 100
+        burst: 50
+        period: 1s
+
+    # --- Compression --------------------------------------------------------
+    compression:
+      compress: {}
+
+    # --- Authentification du dashboard Traefik ------------------------------
+    # Générer le hash : htpasswd -nbB admin 'MotDePasse' | sed -e 's/\$/\$\$/g'
+    # Puis remplacer la valeur ci-dessous.
+    traefik-auth:
+      basicAuth:
+        users:
+          - "admin:$$2y$$05$$REMPLACER_PAR_UN_HASH_BCRYPT_GENERE_AVEC_HTPASSWD"
+
+    # --- Chaîne sécurité standard -------------------------------------------
+    kaydan-chain:
+      chain:
+        middlewares:
+          - secure-headers
+          - compression
+          - rate-limit

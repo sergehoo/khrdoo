@@ -1,0 +1,115 @@
+{
+  "realm": "kaydan",
+  "displayName": "Kaydan ERP — K-Access",
+  "enabled": true,
+  "sslRequired": "external",
+  "registrationAllowed": false,
+  "resetPasswordAllowed": true,
+  "rememberMe": true,
+  "verifyEmail": true,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "bruteForceProtected": true,
+  "permanentLockout": false,
+  "maxFailureWaitSeconds": 900,
+  "failureFactor": 5,
+  "waitIncrementSeconds": 60,
+  "passwordPolicy": "length(12) and upperCase(1) and lowerCase(1) and digits(1) and specialChars(1) and notUsername(undefined) and passwordHistory(3)",
+  "otpPolicyType": "totp",
+  "otpPolicyAlgorithm": "HmacSHA1",
+  "otpPolicyDigits": 6,
+  "otpPolicyPeriod": 30,
+  "accessTokenLifespan": 300,
+  "ssoSessionIdleTimeout": 1800,
+  "ssoSessionMaxLifespan": 36000,
+  "roles": {
+    "realm": [
+      { "name": "erp-user", "description": "Utilisateur ERP standard" },
+      { "name": "erp-manager", "description": "Responsable / manager" },
+      { "name": "erp-accountant", "description": "Comptabilité" },
+      { "name": "erp-admin", "description": "Administrateur ERP" }
+    ]
+  },
+  "groups": [
+    {
+      "name": "ERP Users",
+      "path": "/ERP Users",
+      "realmRoles": ["erp-user"]
+    },
+    {
+      "name": "ERP Managers",
+      "path": "/ERP Managers",
+      "realmRoles": ["erp-user", "erp-manager"]
+    },
+    {
+      "name": "ERP Accounting",
+      "path": "/ERP Accounting",
+      "realmRoles": ["erp-user", "erp-accountant"]
+    },
+    {
+      "name": "ERP Admins",
+      "path": "/ERP Admins",
+      "realmRoles": ["erp-user", "erp-admin"]
+    }
+  ],
+  "requiredActions": [
+    {
+      "alias": "CONFIGURE_TOTP",
+      "name": "Configure OTP",
+      "enabled": true,
+      "defaultAction": false,
+      "priority": 10
+    }
+  ],
+  "clientScopes": [
+    {
+      "name": "groups",
+      "description": "Groupes de l'utilisateur (mapping rôles Odoo)",
+      "protocol": "openid-connect",
+      "attributes": { "include.in.token.scope": "true", "display.on.consent.screen": "false" },
+      "protocolMappers": [
+        {
+          "name": "groups",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-group-membership-mapper",
+          "consentRequired": false,
+          "config": {
+            "full.path": "false",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true",
+            "claim.name": "groups"
+          }
+        }
+      ]
+    }
+  ],
+  "defaultDefaultClientScopes": ["profile", "email", "roles", "web-origins", "groups"],
+  "clients": [
+    {
+      "clientId": "${KEYCLOAK_ODOO_CLIENT_ID}",
+      "name": "Odoo (Kaydan ERP)",
+      "description": "Client OIDC pour l'authentification Odoo via auth_oidc (OCA)",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "${KEYCLOAK_ODOO_CLIENT_SECRET}",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "rootUrl": "https://erp.${KAYDAN_DOMAIN}",
+      "baseUrl": "https://erp.${KAYDAN_DOMAIN}/web",
+      "redirectUris": [
+        "https://erp.${KAYDAN_DOMAIN}/auth_oauth/signin",
+        "https://erp.${KAYDAN_DOMAIN}/*"
+      ],
+      "webOrigins": ["https://erp.${KAYDAN_DOMAIN}"],
+      "attributes": {
+        "post.logout.redirect.uris": "https://erp.${KAYDAN_DOMAIN}/*",
+        "pkce.code.challenge.method": "S256"
+      },
+      "defaultClientScopes": ["web-origins", "profile", "roles", "email", "groups"],
+      "optionalClientScopes": ["address", "phone", "offline_access"]
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Favicon Kaydan (frontend / login / portail) -->
+    <template id="kaydan_favicon" inherit_id="web.layout" name="Kaydan — favicon">
+        <xpath expr="//head" position="inside">
+            <link rel="icon" type="image/svg+xml"
+                  href="/kaydan_branding/static/src/img/favicon.svg"/>
+        </xpath>
+    </template>
+</odoo>

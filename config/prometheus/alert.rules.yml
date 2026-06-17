@@ -1,0 +1,59 @@
+# =============================================================================
+#  Prometheus — règles d'alerte Kaydan ERP
+#  (Visualisables dans Grafana ; brancher Alertmanager pour notifications)
+# =============================================================================
+groups:
+  - name: hote
+    rules:
+      - alert: CPUEleve
+        expr: 100 - (avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 90
+        for: 10m
+        labels: { severity: warning }
+        annotations:
+          summary: "CPU > 90% depuis 10 min sur {{ $labels.instance }}"
+
+      - alert: MemoireFaible
+        expr: (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) * 100 < 10
+        for: 5m
+        labels: { severity: critical }
+        annotations:
+          summary: "Mémoire disponible < 10% sur {{ $labels.instance }}"
+
+      - alert: DisquePlein
+        expr: (node_filesystem_avail_bytes{mountpoint="/host"} / node_filesystem_size_bytes{mountpoint="/host"}) * 100 < 15
+        for: 5m
+        labels: { severity: critical }
+        annotations:
+          summary: "Espace disque < 15% sur {{ $labels.instance }}"
+
+  - name: postgresql
+    rules:
+      - alert: PostgresIndisponible
+        expr: pg_up == 0
+        for: 1m
+        labels: { severity: critical }
+        annotations:
+          summary: "PostgreSQL injoignable"
+
+      - alert: ConnexionsPostgresElevees
+        expr: sum(pg_stat_activity_count) > 180
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: "Connexions PostgreSQL proches de la limite (max 200)"
+
+  - name: conteneurs
+    rules:
+      - alert: ConteneurRedemarrages
+        expr: rate(container_start_time_seconds[15m]) > 0 and on() (time() - container_start_time_seconds < 300)
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: "Conteneur {{ $labels.name }} redémarre fréquemment"
+
+      - alert: MemoireConteneurElevee
+        expr: (container_memory_usage_bytes{name=~"kaydan-.*"} / container_spec_memory_limit_bytes{name=~"kaydan-.*"}) * 100 > 90
+        for: 10m
+        labels: { severity: warning }
+        annotations:
+          summary: "Conteneur {{ $labels.name }} utilise > 90% de sa limite mémoire"

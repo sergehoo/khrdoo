@@ -1,0 +1,40 @@
+# =============================================================================
+#  Prometheus — collecte des métriques Kaydan ERP
+# =============================================================================
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: kaydan-erp
+
+rule_files:
+  - /etc/prometheus/alert.rules.yml
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  - job_name: node-exporter
+    static_configs:
+      - targets: ["node-exporter:9100"]
+        labels:
+          instance: vps-host
+
+  - job_name: cadvisor
+    static_configs:
+      - targets: ["cadvisor:8080"]
+
+  - job_name: postgres
+    static_configs:
+      - targets: ["postgres-exporter:9187"]
+
+  # Métriques Traefik (déploiement autonome ; sous Dokploy adapter la cible)
+  - job_name: traefik
+    static_configs:
+      - targets: ["kaydan-traefik:8080"]
+    metrics_path: /metrics
+
+  # Keycloak est externe : pour superviser ses métriques, ajoutez ici une cible
+  # pointant vers l'instance existante (ex. sso.kaydan.example.com:9000) si elle
+  # expose /metrics et est joignable depuis ce réseau.

@@ -1,0 +1,27 @@
+# =============================================================================
+#  Kaydan ERP — Rotation des journaux (installé dans /etc/logrotate.d/kaydan)
+#  Les logs des conteneurs sont déjà limités par Docker (json-file 10m x5).
+#  Ce fichier gère les journaux applicatifs hôte (backup, fail2ban-custom).
+# =============================================================================
+
+/var/log/backup/*.log {
+    weekly
+    rotate 12
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 0640 root root
+}
+
+# Docker json logs (sécurité supplémentaire — Docker gère déjà la rotation)
+/var/lib/docker/containers/*/*-json.log {
+    daily
+    rotate 7
+    compress
+    delaycompress
+    missingok
+    copytruncate
+    notifempty
+    su root root
+}

@@ -1,0 +1,50 @@
+# =============================================================================
+#  KAYDAN ERP — Traefik AUTONOME (déploiement SANS Dokploy)
+# -----------------------------------------------------------------------------
+#  À utiliser UNIQUEMENT si vous n'utilisez PAS Dokploy (qui fournit son propre
+#  Traefik). Crée le réseau "dokploy-network" attendu par docker-compose.yml.
+#
+#  Démarrage :
+#    docker network create dokploy-network          # si absent
+#    touch config/traefik/acme.json && chmod 600 config/traefik/acme.json
+#    docker compose -f docker-compose.traefik.yml -f docker-compose.yml up -d
+# =============================================================================
+name: kaydan-erp
+
+networks:
+  dokploy-network:
+    external: true
+
+services:
+  traefik:
+    image: traefik:v3.3
+    container_name: kaydan-traefik
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      ACME_EMAIL: ${ACME_EMAIL}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./config/traefik/traefik.yml:/etc/traefik/traefik.yml:ro
+      - ./config/traefik/dynamic:/etc/traefik/dynamic:ro
+      - ./config/traefik/acme.json:/acme.json
+    networks:
+      - dokploy-network
+    labels:
+      - traefik.enable=true
+      # Dashboard Traefik protégé par BasicAuth (à régler dans dynamic/middlewares.yml)
+      - traefik.http.routers.traefik.rule=Host(`traefik.${DOMAIN}`)
+      - traefik.http.routers.traefik.entrypoints=websecure
+      - traefik.http.routers.traefik.tls=true
+      - traefik.http.routers.traefik.tls.certresolver=letsencrypt
+      - traefik.http.routers.traefik.service=api@internal
+      - traefik.http.routers.traefik.middlewares=traefik-auth@file
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"

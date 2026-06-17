@@ -1,0 +1,42 @@
+# =============================================================================
+#  Kaydan ERP — Fail2Ban (installé dans /etc/fail2ban/jail.local)
+# =============================================================================
+[DEFAULT]
+# Plages de confiance (réseaux internes / IP d'admin) — À ADAPTER
+ignoreip = 127.0.0.1/8 ::1 172.16.0.0/12 10.0.0.0/8
+
+bantime  = 1h
+findtime = 10m
+maxretry = 5
+backend  = systemd
+banaction = ufw
+destemail = root@localhost
+sender    = fail2ban@kaydan
+action    = %(action_mwl)s
+
+# --- SSH ---------------------------------------------------------------------
+[sshd]
+enabled  = true
+port     = 22
+maxretry = 3
+bantime  = 2h
+
+# --- Odoo : échecs d'authentification (via les logs du conteneur) ------------
+[odoo-auth]
+enabled  = true
+port     = http,https
+filter   = odoo-auth
+logpath  = /var/lib/docker/containers/*/*-json.log
+maxretry = 6
+findtime = 10m
+bantime  = 1h
+
+# --- Traefik / reverse proxy : pics de 401/403 -------------------------------
+[traefik-auth]
+enabled  = true
+port     = http,https
+filter   = traefik-auth
+logpath  = /var/lib/docker/containers/*/*-json.log
+maxretry = 8
+findtime = 5m
+bantime  = 1h

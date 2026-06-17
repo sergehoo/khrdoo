@@ -1,0 +1,12 @@
+# =============================================================================
+#  Override — active l'image Odoo avec dépendances OIDC (auth_oidc / Keycloak)
+#  Usage :
+#    docker compose -f docker-compose.yml -f docker-compose.oidc.yml up -d --build odoo
+#  (Sous Dokploy : ajouter ce fichier à la liste des compose de l'application.)
+# =============================================================================
+name: kaydan-erp
+services:
+  odoo:
+    build:
+      context: ./docker/odoo
+    image: kaydan/odoo:18-oidc

@@ -1,0 +1,47 @@
+# =============================================================================
+#  Promtail — collecte des logs des conteneurs Docker -> Loki
+# =============================================================================
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+  log_level: warn
+
+positions:
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+
+scrape_configs:
+  # --- Découverte automatique des conteneurs Docker -------------------------
+  - job_name: docker
+    docker_sd_configs:
+      - host: unix:///var/run/docker.sock
+        refresh_interval: 15s
+    relabel_configs:
+      - source_labels: ['__meta_docker_container_name']
+        regex: '/(.*)'
+        target_label: container
+      - source_labels: ['__meta_docker_container_log_stream']
+        target_label: stream
+      - source_labels: ['__meta_docker_container_label_com_docker_compose_service']
+        target_label: service
+    pipeline_stages:
+      - docker: {}
+      # Extraction du niveau de log Odoo (INFO/WARNING/ERROR)
+      - match:
+          selector: '{container="kaydan-odoo"}'
+          stages:
+            - regex:
+                expression: '(?P<level>INFO|WARNING|ERROR|CRITICAL|DEBUG)'
+            - labels:
+                level:
+
+  # --- Logs système de l'hôte ----------------------------------------------
+  - job_name: syslog-host
+    static_configs:
+      - targets: ["localhost"]
+        labels:
+          job: varlogs
+          host: vps
+          __path__: /var/log/{syslog,auth.log,fail2ban.log}

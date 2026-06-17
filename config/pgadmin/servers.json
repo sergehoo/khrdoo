@@ -1,0 +1,14 @@
+{
+  "Servers": {
+    "1": {
+      "Name": "Kaydan PostgreSQL",
+      "Group": "Kaydan ERP",
+      "Host": "postgres",
+      "Port": 5432,
+      "MaintenanceDB": "postgres",
+      "Username": "odoo",
+      "SSLMode": "prefer",
+      "Comment": "Cluster PostgreSQL 16 — Odoo + Keycloak (mot de passe demandé à la connexion)"
+    }
+  }
+}
