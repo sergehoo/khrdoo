@@ -1,0 +1,81 @@
+// =============================================================================
+//  Kaydan ERP — Tableau de bord RH (thème noir / jaune orangé, sans dépendance)
+// =============================================================================
+.o_kaydan_hr {
+    $kd-yellow: #F7A600;
+    $kd-yellow-d: #E8930A;
+    $kd-black: #111111;
+
+    .o_kd_badge {
+        background: $kd-yellow;
+        color: $kd-black;
+        border-radius: 4px;
+        padding: 2px 8px;
+        font-weight: 600;
+        font-size: .72rem;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+    .o_kd_company { width: auto; min-width: 180px; }
+
+    // --- Cartes KPI ---------------------------------------------------------
+    .o_kd_cards {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+        gap: 1rem;
+    }
+    .o_kd_card {
+        background: #fff;
+        border: 1px solid #e7e7e7;
+        border-left: 4px solid $kd-yellow;
+        border-radius: 10px;
+        padding: 1rem 1.2rem;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, .05);
+    }
+    .o_kd_val { font-size: 2rem; font-weight: 700; color: $kd-black; line-height: 1; }
+    .o_kd_lbl { color: #6b6b6b; font-size: .82rem; margin-top: .4rem; }
+
+    // --- Panneaux -----------------------------------------------------------
+    .o_kd_panel {
+        background: #fff;
+        border: 1px solid #e7e7e7;
+        border-radius: 10px;
+        padding: 1.2rem 1.4rem;
+        height: 100%;
+        h5 { color: $kd-black; font-weight: 600; margin-bottom: 1.1rem; }
+    }
+
+    // --- Barres horizontales ------------------------------------------------
+    .o_kd_bar { display: flex; align-items: center; gap: .75rem; margin-bottom: .55rem; }
+    .o_kd_bar_lbl {
+        flex: 0 0 38%; font-size: .82rem; color: #333; text-align: right;
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .o_kd_bar_track { flex: 1; background: #f0f0f0; border-radius: 6px; height: 14px; overflow: hidden; }
+    .o_kd_bar_fill { height: 100%; background: $kd-yellow; border-radius: 6px; transition: width .4s ease; }
+    .o_kd_bar_val { flex: 0 0 3rem; font-weight: 600; font-size: .82rem; color: $kd-black; }
+
+    // --- Barres verticales (évolution) -------------------------------------
+    .o_kd_vbars {
+        display: flex; align-items: flex-end; gap: .5rem;
+        height: 190px; padding-top: .5rem;
+    }
+    .o_kd_vbar {
+        flex: 1; height: 100%;
+        display: flex; flex-direction: column; align-items: center; justify-content: flex-end;
+    }
+    .o_kd_vbar_num { font-size: .7rem; font-weight: 600; color: $kd-black; margin-bottom: 2px; }
+    .o_kd_vbar_wrap { width: 60%; flex: 1; display: flex; align-items: flex-end; }
+    .o_kd_vbar_fill {
+        width: 100%; min-height: 2px; background: $kd-yellow;
+        border-radius: 4px 4px 0 0; transition: height .4s ease;
+    }
+    .o_kd_vbar:hover .o_kd_vbar_fill { background: $kd-yellow-d; }
+    .o_kd_vbar_lbl { font-size: .65rem; color: #999; margin-top: 4px; }
+
+    // --- Table recrutement --------------------------------------------------
+    .o_kd_table {
+        th { color: #888; font-weight: 600; font-size: .78rem; text-transform: uppercase; }
+        td { font-size: .88rem; vertical-align: middle; }
+    }
+}

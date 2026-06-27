@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 140 140" width="140" height="140" role="img" aria-label="Tableau de bord RH Kaydan">
+  <rect x="0" y="0" width="140" height="140" rx="28" fill="#111111"/>
+  <!-- barres de dashboard -->
+  <rect x="30" y="74" width="16" height="36" rx="3" fill="#F7A600"/>
+  <rect x="54" y="58" width="16" height="52" rx="3" fill="#F7A600"/>
+  <rect x="78" y="44" width="16" height="66" rx="3" fill="#F7A600"/>
+  <!-- silhouette RH -->
+  <circle cx="104" cy="40" r="11" fill="#FFFFFF"/>
+  <path d="M88 70 a16 16 0 0 1 32 0 z" fill="#FFFFFF"/>
+</svg>

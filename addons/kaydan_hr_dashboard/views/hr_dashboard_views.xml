@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Action client (composant OWL enregistré sous le tag kaydan_hr_dashboard) -->
+    <record id="action_kaydan_hr_dashboard" model="ir.actions.client">
+        <field name="name">Tableau de bord RH</field>
+        <field name="tag">kaydan_hr_dashboard</field>
+    </record>
+
+    <!-- Entrée de menu en tête du module Employés, réservée aux RH -->
+    <menuitem id="menu_kaydan_hr_dashboard"
+              name="Tableau de bord"
+              parent="hr.menu_hr_root"
+              action="action_kaydan_hr_dashboard"
+              sequence="1"
+              groups="hr.group_hr_user"/>
+</odoo>
