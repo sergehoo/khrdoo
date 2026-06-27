@@ -90,7 +90,7 @@ class KaydanHrApi(http.Controller):
     # =====================================================================
     #  Santé (public)
     # =====================================================================
-    @http.route(f"{API}/health", type="http", auth="public", methods=["GET"], csrf=False, save_session=False)
+    @http.route(f"{API}/health", type="http", auth="public", methods=["GET"], csrf=False)
     @api_endpoint(auth_required=False)
     def health(self, **kw):
         return _json({"status": "ok", "service": "kaydan-hr-api", "version": "1.0"})
@@ -98,7 +98,7 @@ class KaydanHrApi(http.Controller):
     # =====================================================================
     #  Employés
     # =====================================================================
-    @http.route(f"{API}/employees", type="http", auth="public", methods=["GET"], csrf=False, save_session=False)
+    @http.route(f"{API}/employees", type="http", auth="public", methods=["GET"], csrf=False)
     @api_endpoint()
     def employees(self, **kw):
         limit, offset = _paging(kw)
@@ -124,10 +124,11 @@ class KaydanHrApi(http.Controller):
         } for e in recs]
         return _json({"count": total, "limit": limit, "offset": offset, "results": results})
 
-    @http.route(f"{API}/employees/<int:emp_id>", type="http", auth="public", methods=["GET"], csrf=False, save_session=False)
+    @http.route(f"{API}/employees/<int:emp_id>", type="http", auth="public", methods=["GET"], csrf=False)
     @api_endpoint()
     def employee_detail(self, emp_id, **kw):
-        e = request.env["hr.employee"].browse(emp_id).exists()
+        # search applique les record rules : introuvable OU interdit -> 404 (pas de fuite d'existence)
+        e = request.env["hr.employee"].search([("id", "=", emp_id)], limit=1)
         if not e:
             return _error("Employé introuvable", 404)
         return _json({
@@ -146,7 +147,7 @@ class KaydanHrApi(http.Controller):
     # =====================================================================
     #  Départements
     # =====================================================================
-    @http.route(f"{API}/departments", type="http", auth="public", methods=["GET"], csrf=False, save_session=False)
+    @http.route(f"{API}/departments", type="http", auth="public", methods=["GET"], csrf=False)
     @api_endpoint()
     def departments(self, **kw):
         recs = request.env["hr.department"].search([], order="name")
@@ -161,7 +162,7 @@ class KaydanHrApi(http.Controller):
     # =====================================================================
     #  Congés (hr_holidays)
     # =====================================================================
-    @http.route(f"{API}/leaves", type="http", auth="public", methods=["GET"], csrf=False, save_session=False)
+    @http.route(f"{API}/leaves", type="http", auth="public", methods=["GET"], csrf=False)
     @api_endpoint()
     def leaves(self, **kw):
         if "hr.leave" not in request.env:
@@ -191,22 +192,29 @@ class KaydanHrApi(http.Controller):
         } for l in recs]
         return _json({"count": total, "limit": limit, "offset": offset, "results": results})
 
-    @http.route(f"{API}/leaves", type="http", auth="public", methods=["POST"], csrf=False, save_session=False)
+    @http.route(f"{API}/leaves", type="http", auth="public", methods=["POST"], csrf=False)
     @api_endpoint()
     def create_leave(self, **kw):
         if "hr.leave" not in request.env:
             return _error("Module Congés (hr_holidays) non installé", 501)
         data = _body()
-        required = ["employee_id", "holiday_status_id", "date_from", "date_to"]
-        missing = [f for f in required if not data.get(f)]
+        # Odoo 18 : date_from/date_to sont CALCULÉS -> on crée via request_date_from/to
+        # (champs Date). On accepte aussi les alias date_from/date_to par confort.
+        rdf = data.get("request_date_from") or data.get("date_from")
+        rdt = data.get("request_date_to") or data.get("date_to")
+        missing = [k for k, v in {
+            "employee_id": data.get("employee_id"),
+            "holiday_status_id": data.get("holiday_status_id"),
+            "request_date_from": rdf,
+            "request_date_to": rdt,
+        }.items() if not v]
         if missing:
             return _error("Champs requis manquants : %s" % ", ".join(missing), 422)
         leave = request.env["hr.leave"].create({
             "employee_id": int(data["employee_id"]),
             "holiday_status_id": int(data["holiday_status_id"]),
-            "date_from": data["date_from"],
-            "date_to": data["date_to"],
-            "name": data.get("name") or "Demande via API",
+            "request_date_from": rdf,
+            "request_date_to": rdt,
         })
         return _json({
             "id": leave.id,
@@ -217,7 +225,7 @@ class KaydanHrApi(http.Controller):
     # =====================================================================
     #  Présences (hr_attendance)
     # =====================================================================
-    @http.route(f"{API}/attendances", type="http", auth="public", methods=["GET"], csrf=False, save_session=False)
+    @http.route(f"{API}/attendances", type="http", auth="public", methods=["GET"], csrf=False)
     @api_endpoint()
     def attendances(self, **kw):
         if "hr.attendance" not in request.env:
@@ -246,11 +254,16 @@ class KaydanHrApi(http.Controller):
     # =====================================================================
     #  Tableau de bord (si module kaydan_hr_dashboard installé)
     # =====================================================================
-    @http.route(f"{API}/dashboard", type="http", auth="public", methods=["GET"], csrf=False, save_session=False)
+    @http.route(f"{API}/dashboard", type="http", auth="public", methods=["GET"], csrf=False)
     @api_endpoint()
     def dashboard(self, **kw):
         Employee = request.env["hr.employee"]
         if not hasattr(Employee, "get_kaydan_dashboard_data"):
             return _error("Module Tableau de bord (kaydan_hr_dashboard) non installé", 501)
-        company_id = int(kw["company_id"]) if kw.get("company_id") else None
+        company_id = None
+        if kw.get("company_id"):
+            try:
+                company_id = int(kw["company_id"])
+            except (TypeError, ValueError):
+                return _error("company_id invalide", 400)
         return _json(Employee.get_kaydan_dashboard_data(company_id))
