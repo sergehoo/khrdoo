@@ -97,15 +97,15 @@
       "standardFlowEnabled": true,
       "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": false,
-      "rootUrl": "https://erp.${KAYDAN_DOMAIN}",
-      "baseUrl": "https://erp.${KAYDAN_DOMAIN}/web",
+      "rootUrl": "https://rh.kaydan.tech",
+      "baseUrl": "https://rh.kaydan.tech/web",
       "redirectUris": [
-        "https://erp.${KAYDAN_DOMAIN}/auth_oauth/signin",
-        "https://erp.${KAYDAN_DOMAIN}/*"
+        "https://rh.kaydan.tech/auth_oauth/signin",
+        "https://rh.kaydan.tech/*"
       ],
-      "webOrigins": ["https://erp.${KAYDAN_DOMAIN}"],
+      "webOrigins": ["https://rh.kaydan.tech"],
       "attributes": {
-        "post.logout.redirect.uris": "https://erp.${KAYDAN_DOMAIN}/*",
+        "post.logout.redirect.uris": "https://rh.kaydan.tech/*",
         "pkce.code.challenge.method": "S256"
       },
       "defaultClientScopes": ["web-origins", "profile", "roles", "email", "groups"],

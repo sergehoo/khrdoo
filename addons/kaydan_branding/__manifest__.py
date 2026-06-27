@@ -13,7 +13,7 @@ Kaydan ERP — Personnalisation premium
 - Suppression des mentions "Powered by Odoo" (autorisée en LGPL)
 """,
     "author": "Kaydan Groupe",
-    "website": "https://kaydan.example.com",
+    "website": "https://kaydan.tech",
     "license": "LGPL-3",
     "depends": ["web", "base_setup"],
     "data": [

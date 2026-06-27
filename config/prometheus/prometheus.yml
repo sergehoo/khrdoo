@@ -34,5 +34,5 @@ scrape_configs:
   # une cible joignable (nom du conteneur Traefik de Dokploy + son réseau).
 
   # Keycloak est externe : pour superviser ses métriques, ajoutez ici une cible
-  # pointant vers l'instance existante (ex. sso.kaydan.example.com:9000) si elle
+  # pointant vers l'instance existante (ex. sso.kaydan.tech:9000) si elle
   # expose /metrics et est joignable depuis ce réseau.

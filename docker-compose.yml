@@ -139,7 +139,7 @@ services:
       # --- Compression ------------------------------------------------------
       - traefik.http.middlewares.kaydan-compress.compress=true
       # --- Routeur HTTP principal ------------------------------------------
-      - traefik.http.routers.odoo.rule=Host(`${ODOO_HOST:-erp.${DOMAIN}}`)
+      - traefik.http.routers.odoo.rule=Host(`${ODOO_HOST:-rh.${DOMAIN}}`)
       - traefik.http.routers.odoo.entrypoints=websecure
       - traefik.http.routers.odoo.tls=true
       - traefik.http.routers.odoo.tls.certresolver=letsencrypt
@@ -151,7 +151,7 @@ services:
       - traefik.http.services.odoo.loadbalancer.sticky.cookie.secure=true
       - traefik.http.services.odoo.loadbalancer.sticky.cookie.httponly=true
       # --- Routeur WebSocket (bus / live) sur le port gevent 8072 ----------
-      - traefik.http.routers.odoo-ws.rule=Host(`${ODOO_HOST:-erp.${DOMAIN}}`) && PathPrefix(`/websocket`)
+      - traefik.http.routers.odoo-ws.rule=Host(`${ODOO_HOST:-rh.${DOMAIN}}`) && PathPrefix(`/websocket`)
       - traefik.http.routers.odoo-ws.entrypoints=websecure
       - traefik.http.routers.odoo-ws.tls=true
       - traefik.http.routers.odoo-ws.tls.certresolver=letsencrypt

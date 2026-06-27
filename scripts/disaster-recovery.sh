@@ -50,5 +50,5 @@ $COMPOSE exec -T backup /scripts/restore.sh "$DB_TARGET" "$LATEST"
 echo "[6/6] Démarrage complet de la stack…"
 $COMPOSE up -d
 
-echo "✅ Reprise terminée. Vérifiez : https://erp.${DOMAIN}"
+echo "✅ Reprise terminée. Vérifiez : https://${ODOO_HOST:-rh.${DOMAIN}}"
 echo "   Contrôlez les journaux : make logs S=odoo"
