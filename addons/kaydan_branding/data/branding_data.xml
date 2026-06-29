@@ -1,9 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <!-- Couleurs de la mise en page documentaire (devis, factures, rapports PDF)
-         de la société principale : noir + jaune orangé Kaydan. -->
-    <record id="base.main_company" model="res.company">
-        <field name="primary_color">#F7A600</field>
-        <field name="secondary_color">#111111</field>
-    </record>
+    <!-- noupdate=1 : appliqué une seule fois à l'installation, jamais ré-imposé
+         aux mises à niveau → tu gardes la main sur la charte des documents.
+         (Charte UI = défaut Odoo ; ici ce ne sont que les couleurs des PDF.) -->
+    <data noupdate="1">
+        <record id="base.main_company" model="res.company">
+            <field name="primary_color">#F7A600</field>
+            <field name="secondary_color">#111111</field>
+        </record>
+    </data>
 </odoo>

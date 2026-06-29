@@ -1,37 +1,38 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <templates xml:space="preserve">
 
-    <!-- Liste de barres horizontales réutilisable (attend "barItems" en scope) -->
+    <!-- Liste de barres horizontales (Bootstrap progress) — attend "barItems" -->
     <t t-name="kaydan_hr_dashboard.BarList">
         <t t-if="barItems.length === 0">
             <div class="text-muted">Aucune donnée</div>
         </t>
         <t t-foreach="barItems" t-as="b" t-key="b_index">
-            <div class="o_kd_bar">
-                <span class="o_kd_bar_lbl" t-esc="b.label"/>
-                <div class="o_kd_bar_track">
-                    <div class="o_kd_bar_fill" t-att-style="`width: ${b.pct}%`"/>
+            <div class="d-flex align-items-center gap-2 mb-2">
+                <span class="text-truncate text-end small" style="flex: 0 0 38%;" t-esc="b.label"/>
+                <div class="progress flex-grow-1" style="height: 14px;">
+                    <div class="progress-bar" role="progressbar" t-att-style="`width: ${b.pct}%`"/>
                 </div>
-                <span class="o_kd_bar_val" t-esc="b.value"/>
+                <span class="fw-bold small text-end" style="flex: 0 0 2.5rem;" t-esc="b.value"/>
             </div>
         </t>
     </t>
 
     <!-- Tableau de bord principal -->
     <t t-name="kaydan_hr_dashboard.Dashboard">
-        <div class="o_kaydan_hr p-4">
-            <div class="o_kaydan_hr_header d-flex align-items-center flex-wrap gap-2 mb-4">
+        <div class="o_kaydan_hr p-3">
+            <div class="d-flex align-items-center flex-wrap gap-2 mb-3">
                 <h2 class="mb-0">Tableau de bord RH</h2>
-                <span class="o_kd_badge">Kaydan</span>
                 <div class="ms-auto d-flex align-items-center gap-2">
-                    <select class="form-select form-select-sm o_kd_company"
+                    <select class="form-select form-select-sm" style="width: auto;"
                             t-on-change="(ev) => this.onCompanyChange(ev)">
                         <option value="">Toutes les sociétés</option>
                         <t t-foreach="state.data.companies" t-as="c" t-key="c.id">
                             <option t-att-value="c.id" t-att-selected="c.id === state.companyId ? 'selected' : false" t-esc="c.name"/>
                         </t>
                     </select>
-                    <button class="btn btn-sm btn-secondary" t-on-click="() => this.load()">↻</button>
+                    <button class="btn btn-sm btn-secondary" t-on-click="() => this.load()" title="Actualiser">
+                        <i class="fa fa-refresh"/>
+                    </button>
                 </div>
             </div>
 
@@ -39,119 +40,112 @@
                 <div class="text-muted">Chargement des indicateurs…</div>
             </t>
             <t t-else="">
-                <!-- KPIs -->
-                <div class="o_kd_cards">
+                <!-- KPIs (cartes Bootstrap) -->
+                <div class="row g-3">
                     <t t-foreach="cards" t-as="c" t-key="c.label">
-                        <div class="o_kd_card">
-                            <div class="o_kd_val" t-esc="c.value"/>
-                            <div class="o_kd_lbl" t-esc="c.label"/>
+                        <div class="col-6 col-md-4 col-xl-2">
+                            <div class="card h-100">
+                                <div class="card-body py-3">
+                                    <div class="fs-3 fw-bold lh-1" t-esc="c.value"/>
+                                    <div class="text-muted small mt-1" t-esc="c.label"/>
+                                </div>
+                            </div>
                         </div>
                     </t>
                 </div>
 
                 <!-- Évolution des effectifs (12 mois) -->
-                <div class="o_kd_panel mt-4">
-                    <h5>Évolution des effectifs (12 mois)</h5>
-                    <div class="o_kd_vbars">
-                        <t t-foreach="state.data.evolution" t-as="m" t-key="m.label">
-                            <div class="o_kd_vbar" t-att-title="m.value">
-                                <span class="o_kd_vbar_num" t-esc="m.value"/>
-                                <div class="o_kd_vbar_wrap">
-                                    <div class="o_kd_vbar_fill" t-att-style="`height: ${m.pct}%`"/>
+                <div class="card mt-3">
+                    <div class="card-body">
+                        <h5 class="card-title">Évolution des effectifs (12 mois)</h5>
+                        <div class="o_kd_vbars">
+                            <t t-foreach="state.data.evolution" t-as="m" t-key="m.label">
+                                <div class="o_kd_vbar" t-att-title="m.value">
+                                    <span class="o_kd_vbar_num" t-esc="m.value"/>
+                                    <div class="o_kd_vbar_wrap">
+                                        <div class="o_kd_vbar_fill" t-att-style="`height: ${m.pct}%`"/>
+                                    </div>
+                                    <span class="o_kd_vbar_lbl" t-esc="m.label"/>
                                 </div>
-                                <span class="o_kd_vbar_lbl" t-esc="m.label"/>
-                            </div>
-                        </t>
-                    </div>
-                </div>
-
-                <!-- Département / Genre -->
-                <div class="row mt-3">
-                    <div class="col-lg-7 mb-3">
-                        <div class="o_kd_panel">
-                            <h5>Effectif par département</h5>
-                            <t t-call="kaydan_hr_dashboard.BarList">
-                                <t t-set="barItems" t-value="state.data.by_department"/>
-                            </t>
-                        </div>
-                    </div>
-                    <div class="col-lg-5 mb-3">
-                        <div class="o_kd_panel">
-                            <h5>Répartition par genre</h5>
-                            <t t-call="kaydan_hr_dashboard.BarList">
-                                <t t-set="barItems" t-value="state.data.by_gender"/>
                             </t>
                         </div>
                     </div>
                 </div>
 
-                <!-- Type de contrat / Statut -->
-                <div class="row">
-                    <div class="col-lg-6 mb-3">
-                        <div class="o_kd_panel">
-                            <h5>Effectif par type de contrat</h5>
+                <div class="row g-3 mt-0">
+                    <div class="col-lg-7">
+                        <div class="card h-100"><div class="card-body">
+                            <h5 class="card-title">Effectif par département</h5>
+                            <t t-call="kaydan_hr_dashboard.BarList"><t t-set="barItems" t-value="state.data.by_department"/></t>
+                        </div></div>
+                    </div>
+                    <div class="col-lg-5">
+                        <div class="card h-100"><div class="card-body">
+                            <h5 class="card-title">Répartition par genre</h5>
+                            <t t-call="kaydan_hr_dashboard.BarList"><t t-set="barItems" t-value="state.data.by_gender"/></t>
+                        </div></div>
+                    </div>
+                </div>
+
+                <div class="row g-3 mt-0">
+                    <div class="col-lg-6">
+                        <div class="card h-100"><div class="card-body">
+                            <h5 class="card-title">Effectif par type de contrat</h5>
                             <t t-if="state.data.by_contract_type.length === 0">
                                 <div class="text-muted">Module Contrats (hr_contract) requis</div>
                             </t>
                             <t t-else="">
-                                <t t-call="kaydan_hr_dashboard.BarList">
-                                    <t t-set="barItems" t-value="state.data.by_contract_type"/>
-                                </t>
+                                <t t-call="kaydan_hr_dashboard.BarList"><t t-set="barItems" t-value="state.data.by_contract_type"/></t>
                             </t>
-                        </div>
+                        </div></div>
                     </div>
-                    <div class="col-lg-6 mb-3">
-                        <div class="o_kd_panel">
-                            <h5>Effectif par statut</h5>
-                            <t t-call="kaydan_hr_dashboard.BarList">
-                                <t t-set="barItems" t-value="state.data.by_employee_type"/>
-                            </t>
-                        </div>
+                    <div class="col-lg-6">
+                        <div class="card h-100"><div class="card-body">
+                            <h5 class="card-title">Effectif par statut</h5>
+                            <t t-call="kaydan_hr_dashboard.BarList"><t t-set="barItems" t-value="state.data.by_employee_type"/></t>
+                        </div></div>
                     </div>
                 </div>
 
-                <!-- Top congés / Top départs -->
-                <div class="row">
-                    <div class="col-lg-6 mb-3">
-                        <div class="o_kd_panel">
-                            <h5>Top congés par employé (année)</h5>
+                <div class="row g-3 mt-0">
+                    <div class="col-lg-6">
+                        <div class="card h-100"><div class="card-body">
+                            <h5 class="card-title">Top congés par employé (année)</h5>
                             <t t-if="state.data.top_leaves.length === 0">
                                 <div class="text-muted">Aucun congé validé (ou module Congés absent)</div>
                             </t>
                             <t t-else="">
-                                <t t-call="kaydan_hr_dashboard.BarList">
-                                    <t t-set="barItems" t-value="state.data.top_leaves"/>
-                                </t>
+                                <t t-call="kaydan_hr_dashboard.BarList"><t t-set="barItems" t-value="state.data.top_leaves"/></t>
                             </t>
-                        </div>
+                        </div></div>
                     </div>
-                    <div class="col-lg-6 mb-3">
-                        <div class="o_kd_panel">
-                            <h5>Top départs par motif (12 mois)</h5>
+                    <div class="col-lg-6">
+                        <div class="card h-100"><div class="card-body">
+                            <h5 class="card-title">Top départs par motif (12 mois)</h5>
                             <t t-if="state.data.top_departures.length === 0">
                                 <div class="text-muted">Aucun départ enregistré</div>
                             </t>
                             <t t-else="">
-                                <t t-call="kaydan_hr_dashboard.BarList">
-                                    <t t-set="barItems" t-value="state.data.top_departures"/>
-                                </t>
+                                <t t-call="kaydan_hr_dashboard.BarList"><t t-set="barItems" t-value="state.data.top_departures"/></t>
                             </t>
-                        </div>
+                        </div></div>
                     </div>
                 </div>
 
                 <!-- Recrutement récent -->
-                <div class="o_kd_panel">
-                    <h5>Recrutement récent</h5>
-                    <div class="o_kd_cards o_kd_cards_sm mb-3">
+                <div class="card mt-3"><div class="card-body">
+                    <h5 class="card-title">Recrutement récent</h5>
+                    <div class="row g-3 mb-3">
                         <t t-foreach="state.data.recruitment" t-as="r" t-key="r.label">
-                            <div class="o_kd_card">
-                                <div class="o_kd_val" t-esc="r.value"/>
-                                <div class="o_kd_lbl" t-esc="r.label"/>
+                            <div class="col-4">
+                                <div class="border rounded p-2 text-center">
+                                    <div class="fs-4 fw-bold lh-1" t-esc="r.value"/>
+                                    <div class="text-muted small" t-esc="r.label"/>
+                                </div>
                             </div>
                         </t>
                     </div>
-                    <table class="table table-sm o_kd_table">
+                    <table class="table table-sm">
                         <thead>
                             <tr><th>Employé</th><th>Département</th><th>Arrivée</th></tr>
                         </thead>
@@ -168,7 +162,7 @@
                             </t>
                         </tbody>
                     </table>
-                </div>
+                </div></div>
             </t>
         </div>
     </t>

@@ -1,0 +1,54 @@
+==========================================================================
+ KAYDAN ERP — Import des employés (CSV)
+==========================================================================
+
+FICHIER MODÈLE : imports/employes_modele.csv
+Remplis-le avec tes vrais employés (remplace les lignes d'exemple), puis
+importe-le dans Odoo. Encodage UTF-8, séparateur virgule.
+
+--------------------------------------------------------------------------
+COLONNES (en-têtes = noms techniques Odoo, auto-reconnus à l'import)
+--------------------------------------------------------------------------
+name             Nom complet (obligatoire)            ex: Awa Koné
+work_email       E-mail professionnel                 ex: awa.kone@kaydangroupe.com
+job_title        Intitulé du poste                    ex: Comptable
+department_id    Département (par son nom)             ex: Finance & Comptabilité
+parent_id        Manager (nom d'un employé existant)  ex: Rachel KOFFI
+gender           male | female | other
+employee_type    employee | worker | student | trainee | contractor | freelance
+work_phone       Téléphone professionnel
+mobile_phone     Téléphone portable
+
+--------------------------------------------------------------------------
+PROCÉDURE D'IMPORT DANS ODOO
+--------------------------------------------------------------------------
+1. App "Employés" → vue Liste (icône liste en haut à droite).
+2. Menu engrenage / "Favoris" → "Importer des enregistrements".
+3. "Charger un fichier" → sélectionne employes_modele.csv.
+4. Les colonnes se mappent automatiquement (en-têtes techniques).
+   - Encodage : UTF-8 ; Séparateur : virgule.
+5. Pour department_id / parent_id : si une valeur n'existe pas encore, Odoo
+   propose une case "Créer des valeurs manquantes" → coche-la pour créer
+   automatiquement les départements absents (les managers doivent déjà
+   exister, sinon crée-les d'abord ou laisse la colonne vide).
+6. Clique "Tester" → corrige les éventuelles erreurs → "Importer".
+
+--------------------------------------------------------------------------
+CONSEILS
+--------------------------------------------------------------------------
+- Crée d'abord les départements (Employés → Configuration → Départements)
+  OU laisse Odoo les créer via "Créer des valeurs manquantes".
+- gender et employee_type acceptent les valeurs techniques ci-dessus
+  (minuscules) — c'est le plus fiable.
+- Renseigne gender + department_id pour TOUS : ça alimente directement les
+  graphes "Répartition par genre" et "Effectif par département" du dashboard.
+- Pour les contrats (CDI/CDD…), crée-les ensuite via Employés → Contrats
+  (le graphe "par type de contrat" se base sur les contrats EN COURS).
+- L'import est rejouable : ré-importer le même fichier crée des doublons,
+  donc importe chaque employé une seule fois.
+
+--------------------------------------------------------------------------
+ALTERNATIVE : API REST
+--------------------------------------------------------------------------
+Tu peux aussi créer des employés par l'API (POST non exposé en v1 — lecture
+seule pour l'instant). L'import CSV reste la voie recommandée pour un lot.

@@ -40,24 +40,25 @@ class HrEmployee(models.Model):
         # --- Effectif & répartitions ----------------------------------------
         total = Employee.search_count(comp_dom)
 
-        dept_groups = Employee.read_group(comp_dom, ["department_id"], ["department_id"])
+        # Odoo 18 : _read_group renvoie des tuples (valeur_groupby, __count).
+        dept_groups = Employee._read_group(comp_dom, ["department_id"], ["__count"])
         by_department = sorted(
-            [{"label": g["department_id"][1] if g.get("department_id") else "Sans département",
-              "value": g.get("__count", 0)} for g in dept_groups],
+            [{"label": dept.name if dept else "Sans département", "value": count}
+             for dept, count in dept_groups],
             key=lambda r: r["value"], reverse=True,
         )
 
         gender_labels = {"male": "Hommes", "female": "Femmes", "other": "Autre"}
-        gender_groups = Employee.read_group(comp_dom, ["gender"], ["gender"])
-        by_gender = [{"label": gender_labels.get(g.get("gender"), "Non renseigné"),
-                      "value": g.get("__count", 0)} for g in gender_groups]
+        gender_groups = Employee._read_group(comp_dom, ["gender"], ["__count"])
+        by_gender = [{"label": gender_labels.get(gender, "Non renseigné"), "value": count}
+                     for gender, count in gender_groups]
 
         # Statut (employee_type) — libellés dynamiques depuis la sélection réelle
         et_sel = dict(Employee.fields_get(["employee_type"])["employee_type"].get("selection", []))
-        et_groups = Employee.read_group(comp_dom, ["employee_type"], ["employee_type"])
+        et_groups = Employee._read_group(comp_dom, ["employee_type"], ["__count"])
         by_employee_type = sorted(
-            [{"label": et_sel.get(g.get("employee_type"), g.get("employee_type") or "Non renseigné"),
-              "value": g.get("__count", 0)} for g in et_groups],
+            [{"label": et_sel.get(et, et or "Non renseigné"), "value": count}
+             for et, count in et_groups],
             key=lambda r: r["value"], reverse=True,
         )
 
@@ -111,11 +112,11 @@ class HrEmployee(models.Model):
             try:
                 Contract = self.env["hr.contract"]
                 cdom = [("state", "=", "open"), ("company_id", "in", company_ids)]
-                groups = Contract.read_group(cdom, ["contract_type_id"], ["contract_type_id"])
-                for g in groups:
+                groups = Contract._read_group(cdom, ["contract_type_id"], ["__count"])
+                for ctype, count in groups:
                     by_contract_type.append({
-                        "label": g["contract_type_id"][1] if g.get("contract_type_id") else "Type non défini",
-                        "value": g.get("__count", 0),
+                        "label": ctype.name if ctype else "Type non défini",
+                        "value": count,
                     })
                 sans = total - len(set(Contract.search(cdom).employee_id.ids))
                 if sans > 0:
@@ -133,11 +134,11 @@ class HrEmployee(models.Model):
                 ldom = [("state", "=", "validate"),
                         ("date_from", ">=", year_start_dt),
                         ("employee_id.company_id", "in", company_ids)]
-                lg = Leave.read_group(ldom, ["number_of_days:sum"], ["employee_id"])
-                lg = sorted([g for g in lg if g.get("employee_id")],
-                            key=lambda g: g.get("number_of_days", 0) or 0, reverse=True)
-                top_leaves = [{"label": g["employee_id"][1],
-                               "value": round(g.get("number_of_days", 0) or 0, 1)} for g in lg[:8]]
+                lg = Leave._read_group(ldom, ["employee_id"], ["number_of_days:sum"])
+                lg = sorted([(emp, days) for emp, days in lg if emp],
+                            key=lambda t: t[1] or 0, reverse=True)
+                top_leaves = [{"label": emp.name, "value": round(days or 0, 1)}
+                              for emp, days in lg[:8]]
                 kpis["leaves_to_approve"] = Leave.search_count(
                     [("state", "in", ["confirm", "validate1"]),
                      ("employee_id.company_id", "in", company_ids)]
@@ -159,10 +160,10 @@ class HrEmployee(models.Model):
         try:
             ddom = comp_dom + [("departure_date", "!=", False),
                                ("departure_date", ">=", today - relativedelta(months=12))]
-            dg = EmployeeAll.read_group(ddom, ["departure_reason_id"], ["departure_reason_id"])
+            dg = EmployeeAll._read_group(ddom, ["departure_reason_id"], ["__count"])
             top_departures = sorted(
-                [{"label": g["departure_reason_id"][1] if g.get("departure_reason_id") else "Motif non précisé",
-                  "value": g.get("__count", 0)} for g in dg],
+                [{"label": reason.name if reason else "Motif non précisé", "value": count}
+                 for reason, count in dg],
                 key=lambda r: r["value"], reverse=True,
             )[:8]
         except AccessError:

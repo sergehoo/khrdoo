@@ -1,30 +1,5 @@
 // =============================================================================
-//  Kaydan ERP — Accents corporate du back-office (non destructif, réversible)
+//  Kaydan ERP — Back-office
+//  Aucune surcharge de couleur : on conserve la CHARTE GRAPHIQUE PAR DÉFAUT
+//  d'Odoo. (Le branding se limite au logo + favicon, voir login/layout.)
 // =============================================================================
-$kd-yellow: #F7A600;
-$kd-yellow-dark: #E8930A;
-$kd-black: #111111;
-
-// Barre de navigation principale en noir, marque en jaune orangé
-.o_main_navbar {
-    background-color: $kd-black !important;
-    border-bottom: 2px solid $kd-yellow;
-
-    .o_menu_brand,
-    .o_menu_brand:hover { color: $kd-yellow !important; }
-}
-
-// Boutons d'action principaux
-.btn-primary {
-    background-color: $kd-yellow;
-    border-color: $kd-yellow;
-    color: $kd-black;
-    &:hover, &:focus, &:active {
-        background-color: $kd-yellow-dark !important;
-        border-color: $kd-yellow-dark !important;
-        color: $kd-black !important;
-    }
-}
-
-// Liens et séparateurs de section
-a.o_form_uri, .o_horizontal_separator { color: $kd-yellow-dark; }

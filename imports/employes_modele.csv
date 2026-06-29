@@ -1,0 +1,6 @@
+name,work_email,job_title,department_id,parent_id,gender,employee_type,work_phone,mobile_phone
+Awa Koné,awa.kone@kaydangroupe.com,Comptable,Finance & Comptabilité,Rachel KOFFI,female,employee,+2252720000001,+2250700000001
+Yao Brou,yao.brou@kaydangroupe.com,Technicien,Technique,,male,employee,,+2250700000002
+Fatou Touré,fatou.toure@kaydangroupe.com,Chargée de recrutement,Ressources Humaines,Rachel KOFFI,female,employee,,+2250700000003
+Koffi N'Guessan,koffi.nguessan@kaydangroupe.com,Commercial,Commercial,,male,employee,,+2250700000004
+Aminata Cissé,aminata.cisse@kaydangroupe.com,Consultante,Technique,,female,contractor,,+2250700000005
