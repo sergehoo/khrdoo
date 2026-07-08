@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="ir_cron_contract_alerts" model="ir.cron">
+        <field name="name">Kaydan RH : alertes contrats (CDD / période d'essai)</field>
+        <field name="model_id" ref="hr_contract.model_hr_contract"/>
+        <field name="state">code</field>
+        <field name="code">model._cron_contract_alerts()</field>
+        <field name="interval_number">1</field>
+        <field name="interval_type">days</field>
+        <field name="active" eval="True"/>
+    </record>
+</odoo>

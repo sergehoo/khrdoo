@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Onglet "Infos RH Kaydan" sur la fiche employé -->
+    <record id="view_employee_form_kaydan" model="ir.ui.view">
+        <field name="name">hr.employee.form.kaydan</field>
+        <field name="model">hr.employee</field>
+        <field name="inherit_id" ref="hr.view_employee_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//notebook" position="inside">
+                <page string="Infos RH Kaydan" name="kaydan_hr">
+                    <group>
+                        <group string="Identification">
+                            <field name="matricule"/>
+                            <field name="cnps_number"/>
+                        </group>
+                        <group string="Carrière">
+                            <field name="hire_date"/>
+                            <field name="seniority"/>
+                        </group>
+                    </group>
+                </page>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- Colonne Matricule dans la liste des employés -->
+    <record id="view_employee_tree_kaydan" model="ir.ui.view">
+        <field name="name">hr.employee.list.kaydan</field>
+        <field name="model">hr.employee</field>
+        <field name="inherit_id" ref="hr.view_employee_tree"/>
+        <field name="arch" type="xml">
+            <field name="name" position="before">
+                <field name="matricule" optional="show"/>
+            </field>
+        </field>
+    </record>
+</odoo>
