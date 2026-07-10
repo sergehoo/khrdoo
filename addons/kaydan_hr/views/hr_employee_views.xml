@@ -19,6 +19,17 @@
                         </group>
                     </group>
                 </page>
+                <page string="Mutations" name="kaydan_transfers">
+                    <field name="transfer_ids" readonly="1">
+                        <list>
+                            <field name="date"/>
+                            <field name="from_company_id"/>
+                            <field name="to_company_id"/>
+                            <field name="to_department_id"/>
+                            <field name="state" widget="badge" decoration-success="state == 'done'"/>
+                        </list>
+                    </field>
+                </page>
             </xpath>
         </field>
     </record>

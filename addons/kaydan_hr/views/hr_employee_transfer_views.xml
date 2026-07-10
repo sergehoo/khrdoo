@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_hr_employee_transfer_list" model="ir.ui.view">
+        <field name="name">hr.employee.transfer.list</field>
+        <field name="model">hr.employee.transfer</field>
+        <field name="arch" type="xml">
+            <list decoration-muted="state == 'done'">
+                <field name="date"/>
+                <field name="employee_id"/>
+                <field name="from_company_id"/>
+                <field name="to_company_id"/>
+                <field name="to_department_id" optional="show"/>
+                <field name="state" widget="badge" decoration-success="state == 'done'"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_hr_employee_transfer_form" model="ir.ui.view">
+        <field name="name">hr.employee.transfer.form</field>
+        <field name="model">hr.employee.transfer</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <button name="action_apply" type="object" string="Appliquer la mutation"
+                            class="btn-primary" invisible="state == 'done'"/>
+                    <field name="state" widget="statusbar"/>
+                </header>
+                <sheet>
+                    <group>
+                        <group string="Employé">
+                            <field name="employee_id" readonly="state == 'done'"/>
+                            <field name="date" readonly="state == 'done'"/>
+                        </group>
+                        <group string="Origine">
+                            <field name="from_company_id"/>
+                            <field name="from_department_id"/>
+                        </group>
+                    </group>
+                    <group string="Destination">
+                        <group>
+                            <field name="to_company_id" readonly="state == 'done'"/>
+                            <field name="to_department_id" readonly="state == 'done'"/>
+                        </group>
+                        <group>
+                            <field name="to_job_id" readonly="state == 'done'"/>
+                        </group>
+                    </group>
+                    <group string="Motif">
+                        <field name="reason" nolabel="1" readonly="state == 'done'"/>
+                    </group>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_hr_employee_transfer" model="ir.actions.act_window">
+        <field name="name">Mutations inter-filiales</field>
+        <field name="res_model">hr.employee.transfer</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Créer une mutation</p>
+            <p>Transférez un employé d'une filiale à une autre. L'ancienneté groupe
+               (date d'embauche) est conservée ; la mutation est tracée dans l'historique.</p>
+        </field>
+    </record>
+
+    <menuitem id="menu_hr_employee_transfer"
+              name="Mutations inter-filiales"
+              parent="hr.menu_hr_root"
+              action="action_hr_employee_transfer"
+              sequence="6"
+              groups="hr.group_hr_user"/>
+</odoo>

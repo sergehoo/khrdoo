@@ -23,9 +23,12 @@ inter-filiales, évaluations.
     "license": "LGPL-3",
     "depends": ["hr", "hr_contract"],
     "data": [
+        "security/ir.model.access.csv",
+        "views/hr_employee_transfer_views.xml",
         "views/hr_employee_views.xml",
         "data/ir_cron_data.xml",
     ],
+    "post_init_hook": "post_init_hook",
     "installable": True,
     "application": False,
     "auto_install": False,

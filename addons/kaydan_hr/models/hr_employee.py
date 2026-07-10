@@ -23,6 +23,10 @@ class HrEmployee(models.Model):
         string="Ancienneté", compute="_compute_seniority",
         groups="hr.group_hr_user",
     )
+    transfer_ids = fields.One2many(
+        "hr.employee.transfer", "employee_id", string="Mutations",
+        groups="hr.group_hr_user",
+    )
 
     @api.depends("hire_date")
     def _compute_seniority(self):
