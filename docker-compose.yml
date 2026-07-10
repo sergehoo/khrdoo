@@ -254,7 +254,7 @@ services:
       - traefik.enable=true
       - traefik.docker.network=dokploy-network
       # API S3
-      - traefik.http.routers.minio-api.rule=Host(`rhs3.kaydan.tech`)
+      - traefik.http.routers.minio-api.rule=Host(`${MINIO_API_HOST:-s3.${DOMAIN}}`)
       - traefik.http.routers.minio-api.entrypoints=websecure
       - traefik.http.routers.minio-api.tls=true
       - traefik.http.routers.minio-api.tls.certresolver=letsencrypt
