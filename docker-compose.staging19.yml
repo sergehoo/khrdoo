@@ -1,0 +1,70 @@
+# =============================================================================
+#  KAYDAN ERP — STAGING Odoo 19 (préparation de migration 18 -> 19)
+# -----------------------------------------------------------------------------
+#  Instance PARALLÈLE et JETABLE : ne touche NI au conteneur prod (kaydan-odoo),
+#  NI à la base prod (kaydan). Elle utilise :
+#    - la base **kaydan19** (copie de prod migrée par OpenUpgrade)
+#    - le volume **kaydan-odoo19-data** (copie du filestore)
+#    - les addons portés **./addons19** (générés par scripts/migrate19-staging.sh)
+#    - l'hôte HTTPS ${ODOO19_HOST:-rh-test.${DOMAIN}}  (créer le DNS A avant)
+#
+#  Usage (après scripts/migrate19-staging.sh) :
+#    docker compose -p capital-humain-rhodoo-n9r1wm \
+#      -f docker-compose.yml -f docker-compose.staging19.yml up -d odoo19
+#  Arrêt/suppression du staging :
+#    docker rm -f kaydan-odoo19 && docker volume rm kaydan-odoo19-data
+# =============================================================================
+name: kaydan-erp
+
+volumes:
+  odoo19-data:
+    name: kaydan-odoo19-data
+
+services:
+  odoo19:
+    image: odoo:19
+    container_name: kaydan-odoo19
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      HOST: postgres
+      USER: ${POSTGRES_USER:-odoo}
+      PASSWORD: ${POSTGRES_PASSWORD}
+      TZ: ${TZ:-UTC}
+    volumes:
+      - odoo19-data:/var/lib/odoo
+      - ./config/odoo/odoo19.conf:/etc/odoo/odoo.conf:ro
+      - ./addons19:/mnt/extra-addons:ro
+    networks:
+      - internal
+      - dokploy-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8069/web/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=dokploy-network
+      - traefik.http.routers.odoo19.rule=Host(`${ODOO19_HOST:-rh-test.${DOMAIN}}`)
+      - traefik.http.routers.odoo19.entrypoints=websecure
+      - traefik.http.routers.odoo19.tls=true
+      - traefik.http.routers.odoo19.tls.certresolver=letsencrypt
+      - traefik.http.routers.odoo19.service=odoo19
+      - traefik.http.services.odoo19.loadbalancer.server.port=8069
+      - traefik.http.routers.odoo19-ws.rule=Host(`${ODOO19_HOST:-rh-test.${DOMAIN}}`) && PathPrefix(`/websocket`)
+      - traefik.http.routers.odoo19-ws.entrypoints=websecure
+      - traefik.http.routers.odoo19-ws.tls=true
+      - traefik.http.routers.odoo19-ws.tls.certresolver=letsencrypt
+      - traefik.http.routers.odoo19-ws.service=odoo19-ws
+      - traefik.http.services.odoo19-ws.loadbalancer.server.port=8072
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
