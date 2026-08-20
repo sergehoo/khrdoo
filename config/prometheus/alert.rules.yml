@@ -42,18 +42,4 @@ groups:
         annotations:
           summary: "Connexions PostgreSQL proches de la limite (max 200)"
 
-  - name: conteneurs
-    rules:
-      - alert: ConteneurRedemarrages
-        expr: rate(container_start_time_seconds[15m]) > 0 and on() (time() - container_start_time_seconds < 300)
-        for: 5m
-        labels: { severity: warning }
-        annotations:
-          summary: "Conteneur {{ $labels.name }} redémarre fréquemment"
-
-      - alert: MemoireConteneurElevee
-        expr: (container_memory_usage_bytes{name=~"kaydan-.*"} / container_spec_memory_limit_bytes{name=~"kaydan-.*"}) * 100 > 90
-        for: 10m
-        labels: { severity: warning }
-        annotations:
-          summary: "Conteneur {{ $labels.name }} utilise > 90% de sa limite mémoire"
+  # (Groupe 'conteneurs' retiré : cAdvisor supprimé de la stack le 2026-08-20.)

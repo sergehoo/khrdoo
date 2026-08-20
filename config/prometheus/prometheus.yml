@@ -21,10 +21,6 @@ scrape_configs:
         labels:
           instance: vps-host
 
-  - job_name: cadvisor
-    static_configs:
-      - targets: ["cadvisor:8080"]
-
   - job_name: postgres
     static_configs:
       - targets: ["postgres-exporter:9187"]
