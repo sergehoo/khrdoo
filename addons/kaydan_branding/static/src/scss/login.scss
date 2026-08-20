@@ -1,14 +1,19 @@
 // =============================================================================
 //  Kaydan ERP — Page de connexion
-//  Charte Odoo par défaut conservée : on ajoute seulement le logo Kaydan.
-//  Aucune surcharge de fond/boutons.
+//  Charte Odoo par défaut conservée. Le logo affiché est celui de la SOCIÉTÉ
+//  (géré par Odoo) ; ce module n'ajoute que la tagline et masque la mention
+//  « Généré par Odoo » (bloc .o_brand_promotion — autorisé en LGPL).
 // =============================================================================
 .o_login_page {
-    .kd-login-brand { margin-bottom: 1.25rem; }
-    .kd-login-logo { max-width: 200px; height: auto; }
+    .kd-login-brand { margin-bottom: 1rem; }
     .kd-login-tagline {
         color: var(--bs-secondary-color, #6c757d);
         font-size: .8rem;
-        margin-top: .4rem;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+        margin-top: .25rem;
     }
 }
+
+// « Généré par Odoo » : masqué sur le login et les pages portail (frontend)
+.o_brand_promotion { display: none !important; }

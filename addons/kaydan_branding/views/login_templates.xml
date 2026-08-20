@@ -2,10 +2,10 @@
 <odoo>
     <!-- Logo + accroche Kaydan au-dessus du formulaire de connexion -->
     <template id="kaydan_login_brand" inherit_id="web.login" name="Kaydan — marque login">
+        <!-- Le logo de la société est déjà affiché par Odoo au-dessus du
+             formulaire : on n'ajoute que la tagline (pas de logo dupliqué). -->
         <xpath expr="//form[@role='form']" position="before">
             <div class="kd-login-brand text-center mb-4">
-                <img src="/kaydan_branding/static/src/img/logo.svg"
-                     alt="Kaydan ERP" class="kd-login-logo"/>
                 <div class="kd-login-tagline">Plateforme de gestion intégrée</div>
             </div>
         </xpath>
