@@ -14,7 +14,9 @@
 #                 fichier de config Traefik ici — seuls les LIBELLÉS (labels)
 #                 des services décrivent le routage à la Traefik de Dokploy.
 # =============================================================================
-name: kaydan-erp
+# Pas de clé `name:` : le nom de projet vient EXCLUSIVEMENT de `-p` (Dokploy).
+# Avec `name:` ici, un `docker compose up` lancé sans -p créait un SECOND
+# projet réutilisant les mêmes container_name -> conflit de noms.
 
 # --- Ancres réutilisables -----------------------------------------------------
 x-logging: &default-logging

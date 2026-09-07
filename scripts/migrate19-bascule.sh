@@ -21,7 +21,7 @@ set -uo pipefail
 PROJECT="capital-humain-rhodoo-n9r1wm"
 CODE_DIR="/etc/dokploy/compose/${PROJECT}/code"
 ODOO="kaydan-odoo"; PG="kaydan-postgres"
-DB="kaydan"; STG="kaydan19"
+DB="kaydan"; STG="stg19"   # stg19 : ne matche pas le dbfilter ^kaydan.*$
 OU_DIR="openupgrade19"
 TS="$(date +%Y%m%d_%H%M%S)"
 
@@ -36,8 +36,13 @@ EOF
 fi
 
 cd "$CODE_DIR" || exit 1
-set -a; [ -f .env ] && . ./.env; set +a
-: "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD introuvable (.env)}"
+# Secrets lus DIRECTEMENT dans le conteneur : `. ./.env` interpréterait
+# `BACKUP_CRON=0 2 * * *` comme une commande et mangerait les caractères
+# spéciaux des mots de passe (le parseur dotenv de compose n'est pas bash).
+POSTGRES_PASSWORD="$(docker exec "$PG" printenv POSTGRES_PASSWORD 2>/dev/null || true)"
+[ -n "$POSTGRES_PASSWORD" ] || { echo "❌ mot de passe PostgreSQL introuvable"; exit 1; }
+ODOO_HOST="$(grep -m1 '^ODOO_HOST=' .env 2>/dev/null | cut -d= -f2- | tr -d '\r\"' || true)"
+ODOO_HOST="${ODOO_HOST:-rh.kaydan.tech}"
 
 log(){ echo "[$(date '+%F %T')] $*"; }
 fail(){
@@ -79,6 +84,17 @@ PROD_PENDING="$(docker exec "$PG" psql -U odoo -d "$DB" -tAc \
 [ "${PROD_PENDING:-1}" = "0" ] || fail "prod instable (${PROD_PENDING} modules en transition) — corriger d'abord"
 [ -d "$OU_DIR" ] || fail "OpenUpgrade absent (${OU_DIR}) — lancer d'abord le staging"
 [ -d addons19 ] || fail "addons portés absents (addons19/) — lancer d'abord le staging"
+[ -d addons19/kaydan_kinsight ] || fail "addons19/kaydan_kinsight absent — relancer le staging (module requis par K-Insight)"
+# GARDE-FOU ANTI-REJEU : rejouer OpenUpgrade sur une base déjà en 19 corrompt
+# les données tout en affichant un faux succès.
+PROD_VER0="$(docker exec "$PG" psql -U odoo -d "$DB" -tAc \
+  "SELECT latest_version FROM ir_module_module WHERE name='base';" 2>/dev/null | tr -d '[:space:]')"
+case "$PROD_VER0" in
+  18.0*) log "   ✓ prod en 18.0 (${PROD_VER0}) — bascule légitime" ;;
+  19.0*) fail "la base ${DB} est DÉJÀ en 19.0 (${PROD_VER0}) — bascule déjà effectuée, ne pas rejouer" ;;
+  *)     fail "version de base inattendue : ${PROD_VER0:-inconnue}" ;;
+esac
+command -v rsync >/dev/null || fail "rsync requis pour la bascule des addons : apt install -y rsync"
 FREE_GB="$(df -BG --output=avail / | tail -1 | tr -dc '0-9')"
 [ "${FREE_GB:-0}" -ge 10 ] || fail "espace disque insuffisant (${FREE_GB} Go)"
 log "   ✓ tous les garde-fous passés"
@@ -91,8 +107,7 @@ log "   ✓ Odoo arrêté (les utilisateurs voient une page d'indisponibilité)"
 # ── 2. Sauvegarde finale Odoo 18 ────────────────────────────────────────────
 log "2/6 — Sauvegarde FINALE Odoo 18 (conservée définitivement)"
 mkdir -p backups/pre19
-docker start "$ODOO" >/dev/null 2>&1; sleep 5   # backup.sh n'a pas besoin d'Odoo, mais le filestore doit être lisible
-docker compose -p "$PROJECT" stop odoo >/dev/null 2>&1
+# backup.sh lit le filestore via le volume : Odoo n'a PAS besoin de tourner.
 docker exec kaydan-backup /scripts/backup.sh >/dev/null 2>&1 || fail "sauvegarde finale impossible"
 LAST="$(ls -1t backups/daily/kaydan_*.gpg backups/daily/kaydan_*.gz 2>/dev/null | head -1)"
 [ -n "$LAST" ] || fail "archive finale introuvable"
@@ -104,17 +119,19 @@ log "   ✓ sauvegarde 18 conservée : backups/pre19/${PRE19_NAME} ($(du -h "bac
 log "3/6 — Migration OpenUpgrade 18→19 sur la base ${DB} (10-40 min)"
 docker exec "$PG" psql -U odoo -d "$DB" -c "DELETE FROM ir_attachment WHERE url LIKE '/web/assets/%';" >/dev/null 2>&1
 docker run --rm --network kaydan-internal \
+  -e PGPASSWORD="$POSTGRES_PASSWORD" -e ODOO_DB="$DB" \
   -v "$PWD/$OU_DIR":/openupgrade:ro \
   -v "$PWD/addons19":/mnt/extra-addons:ro \
   -v kaydan-odoo-data:/var/lib/odoo \
-  odoo:19 bash -lc "
+  --entrypoint bash odoo:19 -lc '
     pip3 install --quiet --break-system-packages openupgradelib 2>/dev/null || pip3 install --quiet openupgradelib
-    odoo -d ${DB} --db_host=postgres -r odoo -w '${POSTGRES_PASSWORD}' \
+    odoo -d "$ODOO_DB" --db_host=postgres -r odoo -w "$PGPASSWORD" \
       --addons-path=/openupgrade,/mnt/extra-addons,/mnt/extra-addons/oca \
       --upgrade-path=/openupgrade/openupgrade_scripts/scripts \
       --load=base,web,openupgrade_framework \
-      --update all --stop-after-init --workers=0 --max-cron-threads=0
-  " 2>&1 | tee "/tmp/bascule19_${TS}.log" | grep -iE "loading module|error|critical|traceback" | tail -30
+      --update all -i rpc,api_doc --stop-after-init --workers=0 --max-cron-threads=0
+  ' > "/tmp/bascule19_${TS}.log" 2>&1
+grep -iE "error|critical|traceback" "/tmp/bascule19_${TS}.log" | tail -30
 PROD_VER="$(docker exec "$PG" psql -U odoo -d "$DB" -tAc "SELECT latest_version FROM ir_module_module WHERE name='base';" | tr -d '[:space:]')"
 case "$PROD_VER" in 19.0*) log "   ✓ base migrée en 19.0 (${PROD_VER})" ;; *) fail "base non migrée (base=${PROD_VER:-?}) — voir /tmp/bascule19_${TS}.log" ;; esac
 
@@ -125,14 +142,19 @@ if grep -q '^ODOO_VERSION=' .env 2>/dev/null; then
 else
   echo 'ODOO_VERSION=19' >> .env
 fi
-cp -a addons addons18_backup_"$TS"
-rsync -a --delete addons19/ addons/ 2>/dev/null || { rm -rf addons && cp -a addons19 addons; }
+cp -a addons addons18_backup_"$TS" || fail "sauvegarde des addons 18 impossible"
+# rsync --delete SANS fallback destructif : `rm -rf addons` changerait l'inode
+# du bind-mount et kaydan-backup (non recréé) archiverait indéfiniment les
+# anciens addons. On préserve donc le répertoire lui-même.
+rsync -a --delete addons19/ addons/ || fail "synchronisation des addons échouée"
+docker compose -p "$PROJECT" up -d --no-deps --force-recreate backup >/dev/null 2>&1 \
+  && log "   ✓ conteneur backup recréé (montage addons re-lié)"
 log "   ✓ ODOO_VERSION=19 · addons portés en place (sauvegarde : addons18_backup_${TS})"
 log "   ⚠ Pensez à aligner l'ENV Dokploy (ODOO_VERSION=19) pour les prochains déploiements."
 
 # ── 5. Démarrage Odoo 19 ────────────────────────────────────────────────────
 log "5/6 — Démarrage d'Odoo 19"
-docker compose -p "$PROJECT" up -d --force-recreate odoo >/dev/null 2>&1 || fail "démarrage impossible"
+docker compose -p "$PROJECT" up -d --no-deps --force-recreate odoo >/dev/null 2>&1 || fail "démarrage impossible"
 for i in $(seq 1 60); do
   sleep 10
   H="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$ODOO" 2>/dev/null)"

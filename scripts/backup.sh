@@ -34,8 +34,14 @@ log "=== Début sauvegarde Kaydan ERP (${TS}) ==="
 
 # --- 1. Dump de toutes les bases (hors templates et 'postgres') --------------
 mkdir -p "${WORK_DIR}/databases"
+# Bases jetables (staging de migration, tests de restauration) exclues :
+# sans cela chaque archive embarquerait une copie complète du staging.
+BACKUP_EXCLUDE_DB="${BACKUP_EXCLUDE_DB:-stg19 restoretest19 kaydan19 kaydan_restoretest}"
 DATABASES="$(psql -h "$PGHOST" -U "$PGUSER" -d postgres -At \
   -c "SELECT datname FROM pg_database WHERE datistemplate=false AND datname <> 'postgres';")"
+for _skip in $BACKUP_EXCLUDE_DB; do
+  DATABASES="$(printf '%s\n' $DATABASES | grep -vx "$_skip" || true)"
+done
 
 for db in $DATABASES; do
   log "  → dump base '${db}'"
@@ -96,12 +102,14 @@ if [ "$DOM" = "01" ]; then cp -f "${DAILY_DIR}/${FINAL}" "${MONTHLY_DIR}/"; log 
 
 # --- 8. Rotation -------------------------------------------------------------
 rotate() {  # $1=dossier  $2=nb à conserver
-  local dir="$1" keep="$2" count
-  count=$(ls -1t "$dir"/kaydan_*.{gpg,gz} 2>/dev/null | wc -l || echo 0)
-  if [ "$count" -gt "$keep" ]; then
-    ls -1t "$dir"/kaydan_*.{gpg,gz} 2>/dev/null | tail -n +"$((keep+1))" | xargs -r rm -f
-    log "  ✓ rotation ${dir} (conserve ${keep})"
-  fi
+  # NE PAS utiliser `ls "$dir"/kaydan_*.{gpg,gz}` : l'expansion d'accolades
+  # produit deux motifs ; si l'un ne correspond à rien, ls sort en erreur et
+  # (avec `set -o pipefail`) la rotation était silencieusement désactivée.
+  local dir="$1" keep="$2"
+  find "$dir" -maxdepth 1 -type f \( -name 'kaydan_*.gpg' -o -name 'kaydan_*.gz' \) \
+       -printf '%T@ %p\n' 2>/dev/null \
+    | sort -rn | tail -n +"$((keep+1))" | cut -d' ' -f2- | xargs -r rm -f
+  log "  ✓ rotation ${dir} (conserve ${keep})"
 }
 rotate "$DAILY_DIR"   "$RET_D"
 rotate "$WEEKLY_DIR"  "$RET_W"

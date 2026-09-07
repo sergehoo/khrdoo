@@ -85,21 +85,29 @@ code="$(call res.company search_read '{"domain": [], "fields": ["name"], "limit"
 if [ "$code" = "200" ]; then
   NC="$(jq_py 'len(d)')"; CID="$(jq_py "d[0]['id'] if d else 0")"
   ok "res.company : ${NC} société(s) visible(s)"
+  case "$CID" in ''|*[!0-9]*|0) no "identifiant de société illisible (${CID}) — tests société ignorés"; CID="" ;; esac
+  if [ -n "$CID" ]; then
   code="$(call hr.employee search_count "{\"domain\": [[\"company_id\",\"=\",${CID}]]}")"
   [ "$code" = "200" ] && ok "filtre par filiale (company_id=${CID}) : $(cat "$TMP/out") employé(s)" || no "filtre company_id : HTTP ${code}"
   # Filtrage par contexte allowed_company_ids (comportement multi-société d'Odoo)
   code="$(call hr.employee search_count "{\"context\": {\"allowed_company_ids\": [${CID}]}, \"domain\": []}")"
   [ "$code" = "200" ] && ok "contexte allowed_company_ids respecté : $(cat "$TMP/out") employé(s)" || no "contexte société : HTTP ${code}"
+  fi
 else no "res.company : HTTP ${code}"; fi
 
 # ── 5. Pagination ───────────────────────────────────────────────────────────
 echo "── 5. Pagination (limit / offset)"
+call hr.employee search_count '{"domain": []}' >/dev/null
+NEMP="$(cat "$TMP/out")"
+case "$NEMP" in ''|*[!0-9]*) NEMP=0 ;; esac
+if [ "$NEMP" -lt 3 ]; then echo "   ~ pagination non testable (${NEMP} employé(s), 3 minimum)"; else
 code="$(call hr.employee search_read '{"domain": [], "fields": ["id","name"], "limit": 2, "offset": 0, "order": "id"}')"
 P1="$(jq_py "[r['id'] for r in d]")"
 code2="$(call hr.employee search_read '{"domain": [], "fields": ["id","name"], "limit": 2, "offset": 2, "order": "id"}')"
 P2="$(jq_py "[r['id'] for r in d]")"
 if [ "$code" = "200" ] && [ "$code2" = "200" ] && [ "$P1" != "$P2" ]; then ok "pagination fonctionnelle (page1=${P1} · page2=${P2})"
 else no "pagination : page1=${P1} page2=${P2} (HTTP ${code}/${code2})"; fi
+fi
 
 # ── 6. Congés (agrégats) ────────────────────────────────────────────────────
 echo "── 6. Congés"
@@ -110,19 +118,37 @@ code="$(call hr.leave search_read '{"domain": [["state","=","validate"]], "field
 
 # ── 7. TESTS NÉGATIFS — le moindre privilège est-il réellement appliqué ? ───
 echo "── 7. Tests négatifs (doivent ÉCHOUER côté serveur)"
-code="$(call hr.employee write '{"ids": [1], "vals": {"name": "PIRATAGE-TEST"}}')"
-if [ "$code" = "200" ]; then no "ÉCRITURE ACCEPTÉE sur hr.employee — droits trop larges, corriger !"
-else ok "écriture refusée (HTTP ${code}) — lecture seule confirmée"; fi
+# ⚠ Test d'écriture : on mémorise la valeur d'origine et on la RESTAURE si
+# l'écriture passe (sinon un test lancé en prod renommerait un employé).
+call hr.employee search_read '{"domain": [], "fields": ["id","name"], "limit": 1, "order": "id"}' >/dev/null
+W_ID="$(jq_py "d[0]['id'] if d else 0")"; W_NAME="$(jq_py "d[0]['name'] if d else ''")"
+if [ "${W_ID:-0}" = "0" ] || [ "$W_ID" = "?" ]; then
+  echo "   ~ test d'écriture ignoré (aucun employé lisible)"
+else
+  code="$(call hr.employee write "{\"ids\": [${W_ID}], \"vals\": {\"name\": \"KINSIGHT-WRITE-PROBE\"}}")"
+  if [ "$code" = "200" ]; then
+    no "ÉCRITURE ACCEPTÉE sur hr.employee — droits trop larges, corriger !"
+    RESTORE="$(python3 -c 'import json,sys; print(json.dumps({"ids":[int(sys.argv[1])],"vals":{"name":sys.argv[2]}}))' "$W_ID" "$W_NAME")"
+    call hr.employee write "$RESTORE" >/dev/null && echo "      ↩ valeur d'origine restaurée : ${W_NAME}"
+  else ok "écriture refusée (HTTP ${code}) — lecture seule confirmée"; fi
+fi
 
-code="$(call hr.version search_read '{"domain": [], "fields": ["wage"], "limit": 1}')"
-if [ "$code" = "200" ] && [ "$(jq_py "('wage' in d[0]) if d else False")" = "True" ]; then
-  no "SALAIRES LISIBLES (hr.version.wage) — retirer cet accès immédiatement !"
-else ok "salaires inaccessibles (HTTP ${code}) — protection au niveau champ effective"; fi
+# Trois cas distincts : refusé (protégé) · autorisé avec champ (fuite) ·
+# autorisé mais aucun enregistrement (INDÉTERMINÉ, pas une preuve).
+neg_field() { # $1=modèle $2=champ $3=libellé
+  local c f
+  c="$(call "$1" search_read "{\"domain\": [], \"fields\": [\"$2\"], \"limit\": 1}")"
+  if [ "$c" != "200" ]; then ok "$3 : accès refusé (HTTP ${c})"; return; fi
+  f="$(jq_py "('$2' in d[0]) if d else None")"
+  case "$f" in
+    True)  no "$3 LISIBLE ($1.$2) — retirer cet accès immédiatement !" ;;
+    None)  echo "   ~ $3 : indéterminé (aucun enregistrement à lire)" ;;
+    *)     ok "$3 non exposé (champ absent de la réponse)" ;;
+  esac
+}
+neg_field hr.version wage "salaires"
 
-code="$(call hr.version search_read '{"domain": [], "fields": ["contract_type_id","contract_date_end"], "limit": 1}')"
-if [ "$code" = "200" ] && [ "$(jq_py "('contract_type_id' in d[0]) if d else False")" = "True" ]; then
-  no "données de CONTRAT lisibles — réservées à hr.group_hr_manager"
-else ok "contrats inaccessibles (HTTP ${code}) — conforme"; fi
+neg_field hr.version contract_type_id "données de contrat"
 
 # Positif : les champs DÉLÉGUÉS doivent bien être lisibles (dept/poste)
 code="$(call hr.employee search_read '{"domain": [], "fields": ["name","department_id","job_id","job_title","employee_type"], "limit": 1}')"
@@ -130,10 +156,7 @@ if [ "$code" = "200" ] && [ "$(jq_py "('department_id' in d[0]) if d else False"
   ok "champs délégués (department_id/job_id via hr.version) lisibles — mapping K-Insight opérationnel"
 else no "champs délégués illisibles (HTTP ${code}) — vérifier l'ACL de lecture sur hr.version"; fi
 
-code="$(call hr.employee search_read '{"domain": [], "fields": ["cnps_number"], "limit": 1}')"
-CN="$(jq_py "('cnps_number' in d[0]) if d else False")"
-if [ "$code" = "200" ] && [ "$CN" = "True" ]; then no "CNPS lisible — donnée sensible exposée !"
-else ok "numéro CNPS non exposé — conforme"; fi
+neg_field hr.employee cnps_number "numéro CNPS"
 
 # Odoo renvoie la clé `password` mais TOUJOURS vide : l'échec n'est réel que
 # si une valeur non vide sort.

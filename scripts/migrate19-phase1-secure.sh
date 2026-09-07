@@ -24,7 +24,9 @@ CODE_DIR="/etc/dokploy/compose/${PROJECT}/code"
 ODOO="kaydan-odoo"
 PG="kaydan-postgres"
 DB="kaydan"
-TESTDB="kaydan_restoretest"
+# ⚠ NE PAS préfixer par "kaydan" : le dbfilter de prod est ^kaydan.*$ ; une
+#   seconde base correspondante casse la connexion à https://rh.kaydan.tech.
+TESTDB="restoretest19"
 DO_RESTORE_TEST=1
 [ "${1:-}" = "--no-restore-test" ] && DO_RESTORE_TEST=0
 
@@ -48,9 +50,10 @@ say "Date : $(date '+%F %T %Z')   ·   Hôte : $(hostname)"
 # =============================================================================
 head2 "1. Conteneurs Odoo : détection des parallèles / conflits"
 # =============================================================================
-# Tout conteneur dont le nom commence par kaydan-odoo OU basé sur une image odoo
+# Uniquement les conteneurs NOMMÉS kaydan-odoo* : ne JAMAIS filtrer sur l'image
+# "odoo:*", sinon on tuerait les conteneurs jetables d'une migration en cours.
 mapfile -t ODOO_CTS < <(docker ps -a --format '{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}|{{.Label "com.docker.compose.project"}}' \
-  | grep -E '\|kaydan-odoo|\|odoo:' || true)
+  | grep -E '^[^|]*\|kaydan-odoo' || true)
 
 if [ "${#ODOO_CTS[@]}" -eq 0 ]; then
   ko "aucun conteneur Odoo trouvé (l'instance est arrêtée ou supprimée)"
@@ -61,10 +64,10 @@ else
   done
 fi
 
-# Le conteneur légitime : nom kaydan-odoo ET projet = $PROJECT
-LEGIT="$(docker ps -a --filter "name=^/${ODOO}$" \
-  --format '{{.ID}}|{{.Label "com.docker.compose.project"}}' 2>/dev/null || true)"
-LEGIT_ID="${LEGIT%%|*}"; LEGIT_PROJ="${LEGIT##*|}"
+# Projet compose réellement porté par le conteneur de prod (plus fiable qu'un
+# filtre --filter name=^/... dont le comportement a varié selon les versions).
+LEGIT_ID="$(docker inspect -f '{{.Id}}' "$ODOO" 2>/dev/null || true)"
+LEGIT_PROJ="$(docker inspect -f '{{index .Config.Labels "com.docker.compose.project"}}' "$ODOO" 2>/dev/null || true)"
 
 # Conteneurs à éliminer : image odoo, PAS le nom officiel, OU nom officiel mais mauvais projet
 REMOVED=0
@@ -76,14 +79,16 @@ while IFS='|' read -r cid cname cimg cstat cproj; do
   fi
 done < <(printf '%s\n' "${ODOO_CTS[@]:-}")
 
-if [ -n "$LEGIT_ID" ] && [ "$LEGIT_PROJ" != "$PROJECT" ]; then
+if [ -n "$LEGIT_ID" ] && [ -n "$LEGIT_PROJ" ] && [ "$LEGIT_PROJ" != "$PROJECT" ]; then
   warn "'${ODOO}' appartient au projet '${LEGIT_PROJ}' au lieu de '${PROJECT}' → recréation"
   docker rm -f "$ODOO" >/dev/null 2>&1 && REMOVED=$((REMOVED+1))
+elif [ -n "$LEGIT_ID" ] && [ -z "$LEGIT_PROJ" ]; then
+  warn "'${ODOO}' n'a aucun label de projet compose — laissé en place (à recréer via Dokploy)"
 fi
 
 # Remise en service via le BON projet (corrige aussi le montage des addons)
 say "   → remise en service via le projet ${PROJECT}"
-if docker compose -p "$PROJECT" up -d odoo >/dev/null 2>&1; then
+if docker compose -p "$PROJECT" up -d --no-deps odoo >/dev/null 2>&1; then
   ok "conteneur ${ODOO} en service (projet ${PROJECT})"
 else
   ko "impossible de démarrer ${ODOO} : docker compose -p ${PROJECT} up -d odoo"
@@ -183,7 +188,10 @@ head2 "7. Test de restauration (base jetable ${TESTDB})"
 if [ "$DO_RESTORE_TEST" = "1" ] && [ -n "${LAST:-}" ]; then
   ARCH_IN_CT="/backups/daily/$(basename "$LAST")"
   say "   → restauration de ${ARCH_IN_CT} vers ${TESTDB}"
-  if docker exec kaydan-backup /scripts/restore.sh "$TESTDB" "$ARCH_IN_CT" > "${OUT}/restore-test.txt" 2>&1; then
+  # 3e argument = nom de la base DANS l'archive ; RESTORE_ROLES=0 pour ne pas
+  # réécrire le mot de passe du rôle `odoo` du cluster de PRODUCTION.
+  if docker exec -e RESTORE_ROLES=0 kaydan-backup \
+       /scripts/restore.sh "$TESTDB" "$ARCH_IN_CT" "$DB" > "${OUT}/restore-test.txt" 2>&1; then
     T_TABLES="$(docker exec "$PG" psql -U odoo -d "$TESTDB" -tAc "SELECT count(*) FROM information_schema.tables WHERE table_schema='public';" 2>/dev/null | tr -d '[:space:]')"
     T_EMP="$(docker exec "$PG" psql -U odoo -d "$TESTDB" -tAc "SELECT count(*) FROM hr_employee;" 2>/dev/null | tr -d '[:space:]')"
     T_USR="$(docker exec "$PG" psql -U odoo -d "$TESTDB" -tAc "SELECT count(*) FROM res_users;" 2>/dev/null | tr -d '[:space:]')"
@@ -191,7 +199,7 @@ if [ "$DO_RESTORE_TEST" = "1" ] && [ -n "${LAST:-}" ]; then
     P_EMP="$(docker exec "$PG" psql -U odoo -d "$DB" -tAc "SELECT count(*) FROM hr_employee;" 2>/dev/null | tr -d '[:space:]')"
     say "   Tables  : prod=${P_TABLES:-?}  restauré=${T_TABLES:-?}"
     say "   Employés: prod=${P_EMP:-?}  restauré=${T_EMP:-?}   ·   Utilisateurs restaurés=${T_USR:-?}"
-    if [ -n "${T_TABLES:-}" ] && [ "${T_TABLES:-0}" = "${P_TABLES:-x}" ] && [ "${T_EMP:-0}" = "${P_EMP:-x}" ]; then
+    if [ -n "${T_TABLES:-}" ] && [ "$T_TABLES" = "$P_TABLES" ] && [ "${T_EMP:-none}" = "${P_EMP:-none}" ]; then
       ok "RESTAURATION VALIDÉE (structure et volumétrie identiques)"
     else
       ko "restauration incohérente avec la prod → la sauvegarde n'est pas fiable"

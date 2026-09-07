@@ -3,7 +3,7 @@
 # -----------------------------------------------------------------------------
 #  Instance PARALLÈLE et JETABLE : ne touche NI au conteneur prod (kaydan-odoo),
 #  NI à la base prod (kaydan). Elle utilise :
-#    - la base **kaydan19** (copie de prod migrée par OpenUpgrade)
+#    - la base **stg19** (copie de prod migrée par OpenUpgrade)
 #    - le volume **kaydan-odoo19-data** (copie du filestore)
 #    - les addons portés **./addons19** (générés par scripts/migrate19-staging.sh)
 #    - l'hôte HTTPS ${ODOO19_HOST:-rh-test.${DOMAIN}}  (créer le DNS A avant)
@@ -14,7 +14,9 @@
 #  Arrêt/suppression du staging :
 #    docker rm -f kaydan-odoo19 && docker volume rm kaydan-odoo19-data
 # =============================================================================
-name: kaydan-erp
+# Pas de clé `name:` : le nom de projet vient EXCLUSIVEMENT de `-p` (Dokploy).
+# Avec `name:` ici, un `docker compose up` lancé sans -p créait un SECOND
+# projet réutilisant les mêmes container_name -> conflit de noms.
 
 volumes:
   odoo19-data:

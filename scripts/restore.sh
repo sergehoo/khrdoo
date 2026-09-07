@@ -9,8 +9,11 @@
 # =============================================================================
 set -euo pipefail
 
-DB_TARGET="${1:?Usage: restore.sh <DB_CIBLE> <ARCHIVE>}"
-ARCHIVE="${2:?Usage: restore.sh <DB_CIBLE> <ARCHIVE>}"
+DB_TARGET="${1:?Usage: restore.sh <DB_CIBLE> <ARCHIVE> [DB_SOURCE]}"
+ARCHIVE="${2:?Usage: restore.sh <DB_CIBLE> <ARCHIVE> [DB_SOURCE]}"
+# 3e argument : nom de la base DANS L'ARCHIVE (par défaut = la cible).
+# Indispensable pour restaurer une sauvegarde de "kaydan" vers une base de test.
+SRC_DB="${3:-$DB_TARGET}"
 
 PGHOST="${PGHOST:-postgres}"
 PGUSER="${PGUSER:-odoo}"
@@ -41,15 +44,17 @@ esac
 
 # --- 2. Extraction -----------------------------------------------------------
 tar -xf "$TARFILE" -C "$WORK_DIR"
-DUMP="${WORK_DIR}/databases/${DB_TARGET}.dump"
+DUMP="${WORK_DIR}/databases/${SRC_DB}.dump"
 [ -f "$DUMP" ] || {
-  log "❌ Dump '${DB_TARGET}.dump' absent de l'archive. Bases disponibles :"
+  log "❌ Dump '${SRC_DB}.dump' absent de l'archive. Bases disponibles :"
   ls -1 "${WORK_DIR}/databases/" | sed 's/\.dump$//' | grep -v '^_roles'
   exit 1
 }
 
 # --- 3. Restauration des rôles (idempotent) ----------------------------------
-if [ -f "${WORK_DIR}/databases/_roles.sql" ]; then
+# RESTORE_ROLES=0 pour NE PAS toucher aux rôles du cluster : _roles.sql contient
+# un ALTER ROLE ... PASSWORD qui écraserait le mot de passe courant de la PROD.
+if [ "${RESTORE_ROLES:-1}" = "1" ] && [ -f "${WORK_DIR}/databases/_roles.sql" ]; then
   log "  → restauration des rôles"
   psql -h "$PGHOST" -U "$PGUSER" -d postgres -f "${WORK_DIR}/databases/_roles.sql" 2>/dev/null || true
 fi

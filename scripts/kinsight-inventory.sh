@@ -61,6 +61,7 @@ hr.leave hr.leave.type hr.leave.allocation hr.applicant hr.recruitment.stage \
 hr.skill hr.skill.type hr.resume.line hr.attendance hr.expense hr.employee.category \
 hr.departure.reason hr.work.location hr.employee.transfer res.company res.users"
 
+rm -f "${OUT}"/champs-*.json
 : > "${OUT}/etat-modeles.csv"; echo "modele,present,donnees_lisibles,nb_enregistrements" >> "${OUT}/etat-modeles.csv"
 for m in $TARGETS; do
   fg="$(call "$m" fields_get '{"attributes": ["string","type","relation","required","store","groups","readonly"]}')"
@@ -86,7 +87,14 @@ def load(p, default=None):
     except Exception: return default if default is not None else []
 
 mods = load('modules-installes.json')
+# Un corps d'ERREUR JSON-2 ({"name": ..., "message": ...}) se parse très bien :
+# sans ce contrôle, `for m in mods` itérait des clés de dict -> TypeError, le
+# rapport n'était pas produit et le script sortait quand même en succès.
+if not isinstance(mods, list):
+    sys.exit(f"⛔ réponse inattendue de /json/2 (modules) : {str(mods)[:200]}")
 doc  = load('doc-index.json', {})
+if not isinstance(doc, dict):
+    doc = {}
 doc_models = {m['model']: m for m in (doc.get('models') or []) if isinstance(m, dict)}
 state = list(csv.DictReader(open(os.path.join(out, 'etat-modeles.csv'))))
 present = [r['modele'] for r in state if r['present'] == 'oui']
