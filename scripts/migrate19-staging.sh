@@ -79,6 +79,13 @@ echo "   ✓ garde-fous OK (staging = base '${STG}', hôte ${HOST19})"
 
 # ── 1. Sauvegarde ───────────────────────────────────────────────────────────
 echo "══ 1/8 — Sauvegarde fraîche de la prod ══"
+# Le conteneur backup monte ./scripts ; après un re-clone du dossier code par
+# Dokploy il garde l'ANCIEN inode -> "/scripts/backup.sh: no such file".
+docker exec kaydan-backup test -f /scripts/backup.sh 2>/dev/null || {
+  echo "   ⚠ montage /scripts périmé dans kaydan-backup → recréation"
+  docker compose -p "$PROJECT" up -d --no-deps --force-recreate backup >/dev/null 2>&1
+  sleep 5
+}
 docker exec kaydan-backup /scripts/backup.sh >/dev/null 2>&1 && echo "   ✓ sauvegarde OK" || die "sauvegarde échouée"
 
 # ── 2. Copie de la base ─────────────────────────────────────────────────────

@@ -86,19 +86,47 @@ elif [ -n "$LEGIT_ID" ] && [ -z "$LEGIT_PROJ" ]; then
   warn "'${ODOO}' n'a aucun label de projet compose — laissé en place (à recréer via Dokploy)"
 fi
 
-# Remise en service via le BON projet (corrige aussi le montage des addons)
-say "   → remise en service via le projet ${PROJECT}"
-if docker compose -p "$PROJECT" up -d --no-deps odoo >/dev/null 2>&1; then
-  ok "conteneur ${ODOO} en service (projet ${PROJECT})"
+# Le conteneur doit-il être (re)créé ? On évite tout redémarrage inutile d'une
+# PROD saine : `docker compose up -d` recrée dès que le compose a changé.
+NEED_RECREATE=0
+RUNNING="$(docker inspect -f '{{.State.Running}}' "$ODOO" 2>/dev/null || echo false)"
+if [ "$RUNNING" != "true" ]; then
+  NEED_RECREATE=1; warn "${ODOO} n'est pas en service → démarrage"
+elif [ "$REMOVED" -gt 0 ]; then
+  NEED_RECREATE=1; warn "${REMOVED} conteneur(s) en conflit supprimé(s) → recréation (cause : un 'docker compose up' lancé SANS -p ${PROJECT})"
 else
-  ko "impossible de démarrer ${ODOO} : docker compose -p ${PROJECT} up -d odoo"
+  # Montage des addons périmé ? (piège d'inode : Dokploy re-clone code/)
+  H_MODS="$(ls -1 addons 2>/dev/null | sort | tr '\n' ' ')"
+  C_MODS="$(docker exec "$ODOO" sh -c 'ls -1 /mnt/extra-addons 2>/dev/null' | sort | tr '\n' ' ')"
+  if [ "$H_MODS" != "$C_MODS" ]; then
+    NEED_RECREATE=1; warn "montage addons périmé (dépôt='${H_MODS}' vs conteneur='${C_MODS}') → recréation"
+  else
+    ok "conteneur ${ODOO} sain et montage à jour — aucun redémarrage nécessaire"
+  fi
 fi
-[ "$REMOVED" -gt 0 ] && warn "${REMOVED} conteneur(s) en conflit supprimé(s) — cause probable : un 'docker compose up' lancé SANS -p ${PROJECT}"
+if [ "$NEED_RECREATE" = "1" ]; then
+  say "   → (re)mise en service via le projet ${PROJECT}"
+  docker compose -p "$PROJECT" up -d --no-deps odoo >/dev/null 2>&1 \
+    || ko "impossible de démarrer ${ODOO} : docker compose -p ${PROJECT} up -d --no-deps odoo"
+fi
 
-# Attente de disponibilité
+# Attente de PostgreSQL puis de la SANTÉ d'Odoo (start_period = 90 s)
 for i in $(seq 1 30); do
   docker exec "$PG" pg_isready -U odoo >/dev/null 2>&1 && break; sleep 2
 done
+wait_healthy() { # $1 = conteneur, $2 = secondes max
+  local c="$1" max="${2:-180}" el=0 st
+  while [ "$el" -lt "$max" ]; do
+    st="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$c" 2>/dev/null)"
+    case "$st" in healthy|running) echo "$st"; return 0 ;; esac
+    sleep 5; el=$((el+5))
+  done
+  echo "${st:-inconnu}"; return 1
+}
+if [ "$NEED_RECREATE" = "1" ]; then
+  say "   → attente de la santé du conteneur (jusqu'à 180 s)"
+  HST="$(wait_healthy "$ODOO" 180)" && ok "santé : ${HST}" || warn "santé après 180 s : ${HST}"
+fi
 
 # =============================================================================
 head2 "2. Versions (Odoo / édition / PostgreSQL)"
@@ -174,6 +202,17 @@ else ko "espace libre insuffisant (${FREE_GB:-?} Go) — la migration duplique b
 # =============================================================================
 head2 "6. Sauvegarde complète (obligatoire)"
 # =============================================================================
+# Le conteneur backup monte ./scripts ; après un re-clone du dossier code par
+# Dokploy, il garde l'ANCIEN inode du répertoire -> /scripts/backup.sh
+# « no such file or directory ». On le recrée avant de s'en servir.
+if ! docker exec kaydan-backup test -f /scripts/backup.sh 2>/dev/null; then
+  warn "montage /scripts périmé dans kaydan-backup → recréation du conteneur"
+  docker compose -p "$PROJECT" up -d --no-deps --force-recreate backup >/dev/null 2>&1
+  sleep 5
+  docker exec kaydan-backup test -f /scripts/backup.sh 2>/dev/null \
+    && ok "montage /scripts rétabli" \
+    || ko "kaydan-backup ne voit toujours pas /scripts/backup.sh (vérifier le service 'backup' du compose)"
+fi
 if docker exec kaydan-backup /scripts/backup.sh 2>&1 | tail -5 | tee -a "$REPORT"; then
   LAST="$(ls -1t backups/daily/kaydan_*.gpg backups/daily/kaydan_*.gz 2>/dev/null | head -1)"
   if [ -n "$LAST" ]; then ok "sauvegarde créée : ${LAST} ($(du -h "$LAST" | cut -f1))"
@@ -218,9 +257,14 @@ fi
 # =============================================================================
 head2 "8. Santé de l'instance"
 # =============================================================================
-HEALTH="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$ODOO" 2>/dev/null)"
+# `starting` est un état TRANSITOIRE (start_period 90 s) : on attend au lieu de
+# lire l'état à l'instant t, sinon on déclare un faux bloquant.
+HEALTH="$(wait_healthy "$ODOO" 180)"
 say "   État conteneur : ${HEALTH:-inconnu}"
-[ "$HEALTH" = "healthy" ] || [ "$HEALTH" = "running" ] && ok "instance en service" || ko "instance non saine : ${HEALTH:-?}"
+case "$HEALTH" in
+  healthy|running) ok "instance en service (${HEALTH})" ;;
+  *)               ko "instance non saine après 180 s : ${HEALTH:-?}" ;;
+esac
 ERRS="$(docker logs --since 1h "$ODOO" 2>&1 | grep -cE "ERROR|CRITICAL" || true)"
 say "   Erreurs dans la dernière heure : ${ERRS:-0}"
 

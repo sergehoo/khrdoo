@@ -108,6 +108,13 @@ log "   ✓ Odoo arrêté (les utilisateurs voient une page d'indisponibilité)"
 log "2/6 — Sauvegarde FINALE Odoo 18 (conservée définitivement)"
 mkdir -p backups/pre19
 # backup.sh lit le filestore via le volume : Odoo n'a PAS besoin de tourner.
+# Le conteneur backup monte ./scripts ; après un re-clone du dossier code par
+# Dokploy il garde l'ANCIEN inode -> "/scripts/backup.sh: no such file".
+docker exec kaydan-backup test -f /scripts/backup.sh 2>/dev/null || {
+  log "   ⚠ montage /scripts périmé dans kaydan-backup → recréation"
+  docker compose -p "$PROJECT" up -d --no-deps --force-recreate backup >/dev/null 2>&1
+  sleep 5
+}
 docker exec kaydan-backup /scripts/backup.sh >/dev/null 2>&1 || fail "sauvegarde finale impossible"
 LAST="$(ls -1t backups/daily/kaydan_*.gpg backups/daily/kaydan_*.gz 2>/dev/null | head -1)"
 [ -n "$LAST" ] || fail "archive finale introuvable"
