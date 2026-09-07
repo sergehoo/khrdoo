@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+        <!-- Groupe technique : LECTURE SEULE sur le référentiel RH.
+             Pas de catégorie/privilège déclarés : Odoo 19 a remplacé
+             res.groups.category_id par privilege_id (res.groups.privilege),
+             et ce module doit s'installer aussi bien en 18 qu'en 19. -->
+        <record id="group_kinsight_readonly" model="res.groups">
+            <field name="name">K-Insight (lecture seule)</field>
+            <field name="comment">Accès en lecture seule au référentiel RH pour
+                K-Insight (API JSON-2). N'accorde aucun droit d'écriture et
+                n'expose ni les salaires, ni les contrats, ni le numéro CNPS.</field>
+        </record>
+    </data>
+</odoo>

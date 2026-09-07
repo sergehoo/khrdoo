@@ -48,10 +48,14 @@ class HrEmployee(models.Model):
             key=lambda r: r["value"], reverse=True,
         )
 
-        gender_labels = {"male": "Hommes", "female": "Femmes", "other": "Autre"}
-        gender_groups = Employee._read_group(comp_dom, ["gender"], ["__count"])
-        by_gender = [{"label": gender_labels.get(gender, "Non renseigné"), "value": count}
-                     for gender, count in gender_groups]
+        # Répartition par genre — le champ `gender` a été SUPPRIMÉ de
+        # hr.employee en Odoo 19 : on ne l'interroge que s'il existe.
+        by_gender = []
+        if "gender" in Employee._fields:
+            gender_labels = {"male": "Hommes", "female": "Femmes", "other": "Autre"}
+            gender_groups = Employee._read_group(comp_dom, ["gender"], ["__count"])
+            by_gender = [{"label": gender_labels.get(gender, "Non renseigné"), "value": count}
+                         for gender, count in gender_groups]
 
         # Statut (employee_type) — libellés dynamiques depuis la sélection réelle
         et_sel = dict(Employee.fields_get(["employee_type"])["employee_type"].get("selection", []))
@@ -106,9 +110,28 @@ class HrEmployee(models.Model):
                 cnt = EmployeeAll.search_count(comp_dom + [("create_date", "<=", m_end_dt)])
             evolution.append({"label": m_first.strftime("%m/%y"), "value": cnt})
 
-        # --- Effectif par type de contrat (hr_contract) ---------------------
+        # --- Effectif par type de contrat -----------------------------------
+        # Odoo 19 a fusionné hr_contract dans hr : les contrats sont des
+        # « versions d'employé » (hr.version). Odoo 18 utilise hr.contract.
+        # Ce bloc fonctionne sur les DEUX versions.
         by_contract_type = []
-        if "hr.contract" in self.env:
+        if "hr.version" in self.env:
+            try:
+                # 19 : le « contrat en cours » = la version courante de l'employé
+                # (hr.employee._inherits vers hr.version). On compte en Python :
+                # contract_type_id est un champ DÉLÉGUÉ, non regroupable en SQL.
+                counts = {}
+                for emp in Employee.search(comp_dom):
+                    ctype = emp.version_id.contract_type_id if emp.version_id else False
+                    label = ctype.name if ctype else "Sans contrat"
+                    counts[label] = counts.get(label, 0) + 1
+                by_contract_type = sorted(
+                    [{"label": k, "value": v} for k, v in counts.items()],
+                    key=lambda r: r["value"], reverse=True,
+                )
+            except AccessError:
+                by_contract_type = []
+        elif "hr.contract" in self.env:
             try:
                 Contract = self.env["hr.contract"]
                 cdom = [("state", "=", "open"), ("company_id", "in", company_ids)]

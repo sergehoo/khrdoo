@@ -82,7 +82,12 @@
                     <div class="col-lg-5">
                         <div class="card h-100"><div class="card-body">
                             <h5 class="card-title">Répartition par genre</h5>
-                            <t t-call="kaydan_hr_dashboard.BarList"><t t-set="barItems" t-value="state.data.by_gender"/></t>
+                            <t t-if="state.data.by_gender.length === 0">
+                                <div class="text-muted">Donnée non disponible sur cette version d'Odoo</div>
+                            </t>
+                            <t t-else="">
+                                <t t-call="kaydan_hr_dashboard.BarList"><t t-set="barItems" t-value="state.data.by_gender"/></t>
+                            </t>
                         </div></div>
                     </div>
                 </div>
@@ -92,7 +97,7 @@
                         <div class="card h-100"><div class="card-body">
                             <h5 class="card-title">Effectif par type de contrat</h5>
                             <t t-if="state.data.by_contract_type.length === 0">
-                                <div class="text-muted">Module Contrats (hr_contract) requis</div>
+                                <div class="text-muted">Données de contrat indisponibles (module ou droits requis)</div>
                             </t>
                             <t t-else="">
                                 <t t-call="kaydan_hr_dashboard.BarList"><t t-set="barItems" t-value="state.data.by_contract_type"/></t>
