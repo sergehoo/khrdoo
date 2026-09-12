@@ -45,12 +45,29 @@ docker exec "$PG" psql -U odoo -d "$DB" -c \
 echo "5/6 — Marquage des modules (install si absent, upgrade si présent) : ${MODULES}"
 # Construit la liste SQL 'a','b','c' de façon robuste (indépendant du shell)
 mods_sql="'$(printf '%s' "$MODULES" | sed "s/,/','/g")'"
+# Les DÉPENDANCES non installées doivent l'être aussi : marquer uniquement le
+# module demandé le laisse bloqué en 'to install' si une dépendance manque
+# (cas vu le 12/09 : kaydan_hr dépend de hr_contract, non installé).
 docker exec "$PG" psql -U odoo -d "$DB" -c \
-  "UPDATE ir_module_module SET state = CASE
-       WHEN state='installed'   THEN 'to upgrade'
-       WHEN state='uninstalled' THEN 'to install'
-       ELSE state END
-   WHERE name IN (${mods_sql});" >/dev/null
+  "WITH RECURSIVE cible AS (
+       SELECT id, name FROM ir_module_module WHERE name IN (${mods_sql})
+     UNION
+       SELECT m.id, m.name
+       FROM cible c
+       JOIN ir_module_module_dependency d ON d.module_id = c.id
+       JOIN ir_module_module m ON m.name = d.name
+   )
+   UPDATE ir_module_module SET state='to install'
+   WHERE id IN (SELECT id FROM cible) AND state='uninstalled';" >/dev/null
+
+docker exec "$PG" psql -U odoo -d "$DB" -c \
+  "UPDATE ir_module_module SET state='to upgrade'
+   WHERE name IN (${mods_sql}) AND state='installed';" >/dev/null
+
+echo "     Modules et dépendances marqués :"
+docker exec "$PG" psql -U odoo -d "$DB" -tAc \
+  "SELECT '       '||name||' -> '||state FROM ir_module_module
+   WHERE state IN ('to install','to upgrade') ORDER BY name;"
 
 echo "6/6 — Redémarrage Odoo SEUL (applique la MAJ + reconstruit les assets)…"
 docker restart "$ODOO" >/dev/null

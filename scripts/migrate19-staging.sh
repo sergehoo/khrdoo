@@ -44,7 +44,19 @@ POSTGRES_PASSWORD="$(docker exec "$PG" printenv POSTGRES_PASSWORD 2>/dev/null ||
 [ -n "$POSTGRES_PASSWORD" ] || die "mot de passe PostgreSQL introuvable (conteneur ${PG} arrêté ?)"
 DOMAIN_V="$(grep -m1 '^DOMAIN=' .env 2>/dev/null | cut -d= -f2- | tr -d '\r\"' || true)"
 HOST19="$(grep -m1 '^ODOO19_HOST=' .env 2>/dev/null | cut -d= -f2- | tr -d '\r\"' || true)"
+# DOMAIN doit être le domaine RACINE (kaydan.tech). S'il contient déjà un
+# préfixe d'hôte (rh.kaydan.tech), on le retire : sinon le staging viserait
+# « rh-test.rh.kaydan.tech », qui ne résout pas.
+case "$DOMAIN_V" in
+  rh.*|www.*) DOMAIN_V="${DOMAIN_V#*.}" ;;
+esac
 HOST19="${HOST19:-rh-test.${DOMAIN_V:-kaydan.tech}}"
+case "$HOST19" in
+  *.*.*.*) echo "   ⚠ hôte de staging à 3 niveaux : ${HOST19}"
+           echo "     Il ne résoudra probablement pas. Fixez ODOO19_HOST dans .env"
+           echo "     (ex. ODOO19_HOST=rh-test.kaydan.tech) — le staging fonctionnera"
+           echo "     de toute façon, seul l'accès HTTPS sera indisponible." ;;
+esac
 
 # ── 0. Garde-fous ───────────────────────────────────────────────────────────
 echo "══ 0/8 — Garde-fous ══"
@@ -154,12 +166,23 @@ grep -q 'hr_contract' addons19/kaydan_hr/__manifest__.py && die "manifeste kayda
 # 5c. Versions des manifestes 18.0.x -> 19.0.x
 find addons19 -name "__manifest__.py" -exec sed -i 's/"18\.0\./"19.0./' {} \;
 
-# 5d. Vérification : plus aucune référence hr_contract non gardée (py/xml/csv)
-LEFT="$(grep -rn "hr[._]contract" addons19 --include='*.py' --include='*.xml' --include='*.csv' 2>/dev/null \
-        | grep -v "hr.contract.type" | grep -v "model_hr_contract_type" \
-        | grep -vE "in self\.env|in request\.env|elif|^\s*#" || true)"
-[ -z "$LEFT" ] && echo "   ✓ aucune référence hr_contract résiduelle non gardée" \
-               || { echo "$LEFT" | sed 's/^/     /'; die "références hr_contract restantes"; }
+# 5d. Vérification ciblée sur ce qui CASSE réellement au chargement en v19.
+#     (Ne pas chercher « hr_contract » partout : les commentaires et les accès
+#      gardés par `if "hr.contract" in self.env` sont légitimes — le module doit
+#      fonctionner en 18 comme en 19.)
+#     Quatre motifs bloquants :
+#       · "hr_contract" dans les depends d'un manifeste
+#       · _inherit = "hr.contract"
+#       · ref="hr_contract.<xmlid>" dans une donnée XML
+#       · from . import hr_contract
+LEFT="$(grep -rnE 'depends[^]]*hr_contract|_inherit[[:space:]]*=[[:space:]]*["'"'"']hr\.contract|ref="hr_contract\.|from[[:space:]]+\.[[:space:]]+import[[:space:]]+hr_contract' \
+        addons19 --include='*.py' --include='*.xml' 2>/dev/null || true)"
+if [ -z "$LEFT" ]; then
+  echo "   ✓ aucune dépendance ni héritage hr_contract résiduel (commentaires et accès gardés ignorés)"
+else
+  echo "$LEFT" | sed 's/^/     /'
+  die "références hr_contract BLOQUANTES restantes (dépendance, _inherit, ref XML ou import)"
+fi
 echo "   ✓ addons19/ prêt : $(ls -1 addons19 | grep -v oca | tr '\n' ' ')"
 
 # ── 6. Configuration du staging ─────────────────────────────────────────────
