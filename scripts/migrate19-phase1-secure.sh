@@ -209,9 +209,19 @@ PREV="$(ls -1t backups/daily/kaydan_*.gpg backups/daily/kaydan_*.gz 2>/dev/null 
 NB_ARCH="$(ls -1 backups/daily/kaydan_* backups/weekly/kaydan_* backups/monthly/kaydan_* 2>/dev/null | wc -l | tr -d ' ')"
 say "   Archives déjà présentes : ${NB_ARCH:-0}"
 if [ -z "$PREV" ]; then
-  ko "AUCUNE sauvegarde antérieure : le cron de sauvegarde ne fonctionne pas.
-      → Aucun point de restauration n'existe en cas d'incident.
-      → Vérifier : docker exec kaydan-backup test -f /scripts/backup.sh ; docker logs kaydan-backup --tail 50"
+  # Absence LOCALE : le cron peut très bien tourner et pousser vers S3 alors que
+  # le montage ./backups du conteneur pointe sur un inode supprimé (re-clone
+  # Dokploy). On interroge donc le bucket avant de conclure.
+  S3N="$(docker exec kaydan-backup sh -c 'mc alias set k "$BACKUP_S3_ENDPOINT" "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD" >/dev/null 2>&1 && mc ls --recursive k/"$BACKUP_S3_BUCKET"/ 2>/dev/null | wc -l' 2>/dev/null | tr -d '[:space:]')"
+  if [ "${S3N:-0}" -gt 0 ] 2>/dev/null; then
+    warn "aucune archive LOCALE, mais ${S3N} archive(s) présente(s) sur S3 :
+      le montage ./backups du conteneur de sauvegarde est périmé (les fichiers
+      locaux sont écrits dans un inode supprimé). Récupération possible via :
+        bash scripts/restore-from-s3.sh --list"
+  else
+    ko "AUCUNE sauvegarde, ni locale ni sur S3 : aucun point de restauration.
+      → Vérifier : docker logs kaydan-backup --tail 50"
+  fi
 else
   AGE_H=$(( ( $(date +%s) - $(date -r "$PREV" +%s 2>/dev/null || echo 0) ) / 3600 ))
   if [ "$AGE_H" -gt 48 ]; then
