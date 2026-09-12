@@ -37,7 +37,12 @@ docker exec "$BK" test -f /scripts/restore.sh 2>/dev/null || {
   log "⚠ montage /scripts périmé dans ${BK} → recréation"
   docker compose -p "$PROJECT" up -d --no-deps --force-recreate "$BK" >/dev/null 2>&1; sleep 5
 }
-mc_(){ docker exec "$BK" sh -c 'mc alias set k "$BACKUP_S3_ENDPOINT" "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD" >/dev/null 2>&1 && '"$1"; }
+# Les arguments passent par l'ENVIRONNEMENT : aucun guillemet imbriqué, donc
+# aucune surprise de quoting. Les erreurs de mc restent VISIBLES.
+mc_(){ docker exec -e MC_CMD="$1" "$BK" sh -c '
+  mc alias set k "$BACKUP_S3_ENDPOINT" "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD" >/dev/null \
+    || { echo "mc: configuration de l alias impossible (endpoint=$BACKUP_S3_ENDPOINT)" >&2; exit 1; }
+  eval "$MC_CMD"'; }
 q(){ docker exec "$PG" psql -U odoo -d "$1" -tAc "$2" 2>/dev/null | tr -d '[:space:]'; }
 
 ACTION="${1:-}"; ARCHIVE="${2:-}"
@@ -57,9 +62,34 @@ fi
 # ── Rapatriement depuis S3 ─────────────────────────────────────────────────
 BASENAME="$(basename "$ARCHIVE")"
 log "Rapatriement de ${ARCHIVE} depuis MinIO…"
-mc_ "mc cp k/\"\$BACKUP_S3_BUCKET\"/${ARCHIVE} /backups/daily/" >/dev/null 2>&1 \
-  || die "impossible de rapatrier ${ARCHIVE} (nom exact ? voir --list)"
-docker exec "$BK" test -f "/backups/daily/${BASENAME}" || die "archive absente après copie"
+docker exec "$BK" mkdir -p /backups/daily
+
+# Voie 1 : le client mc. L'archive est passée par l'ENVIRONNEMENT (aucun
+# guillemet imbriqué) et la sortie d'erreur est CONSERVÉE pour diagnostic.
+MC_OUT="$(docker exec -e ARCH="$ARCHIVE" "$BK" sh -c '
+  mc alias set k "$BACKUP_S3_ENDPOINT" "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD" >/dev/null 2>&1 \
+    || { echo "alias mc impossible (endpoint=$BACKUP_S3_ENDPOINT)"; exit 1; }
+  mc cp "k/$BACKUP_S3_BUCKET/$ARCH" "/backups/daily/" 2>&1 \
+    || mc get "k/$BACKUP_S3_BUCKET/$ARCH" "/backups/daily/${ARCH##*/}" 2>&1
+' 2>&1)"
+MC_RC=$?
+[ "$MC_RC" = "0" ] || { log "   ⚠ mc a échoué :"; printf '%s\n' "$MC_OUT" | tail -4 | sed 's/^/       /'; }
+
+# Voie 2 (repli) : lecture directe du volume MinIO. Les objets y sont stockés
+# en clair sous  <bucket>/<objet>/<uuid>/part.1 — on récupère cette partie.
+if ! docker exec "$BK" test -s "/backups/daily/${BASENAME}"; then
+  log "   → repli : extraction depuis le volume kaydan-minio-data"
+  docker run --rm -e OBJ="$BASENAME" \
+    -v kaydan-minio-data:/src:ro -v "${CODE_DIR}/backups":/dst \
+    alpine sh -c '
+      set -e
+      p="$(find /src -path "*/daily/$OBJ/*" -name part.1 2>/dev/null | head -1)"
+      [ -n "$p" ] || { echo "objet \"$OBJ\" introuvable dans le volume MinIO"; exit 1; }
+      mkdir -p /dst/daily && cp -f "$p" "/dst/daily/$OBJ"
+      ls -lh "/dst/daily/$OBJ"
+    ' || die "récupération impossible (ni mc, ni volume MinIO). Nom exact ? bash scripts/restore-from-s3.sh --list"
+fi
+docker exec "$BK" test -s "/backups/daily/${BASENAME}" || die "archive absente ou vide après rapatriement"
 SIZE="$(docker exec "$BK" sh -c "du -h /backups/daily/${BASENAME} | cut -f1")"
 log "   ✓ archive disponible (${SIZE})"
 
