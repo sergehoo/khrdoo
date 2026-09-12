@@ -228,6 +228,15 @@ docker run --rm --network kaydan-internal \
       --update all -i rpc,api_doc --stop-after-init --workers=0 --max-cron-threads=0
   ' > "$LOG" 2>&1
 grep -iE "error|critical|traceback" "$LOG" | tail -20
+# ⚠ RE-NEUTRALISATION : la mise à jour des modules recharge leurs fichiers de
+# données, ce qui RÉACTIVE les crons (et peut recréer des serveurs de mail).
+# Neutraliser avant la migration ne suffit donc pas.
+q_stg "UPDATE ir_cron SET active=false;"
+q_stg "UPDATE ir_mail_server SET active=false;"
+q_stg "UPDATE fetchmail_server SET active=false;"
+q_stg "INSERT INTO ir_config_parameter(key,value) VALUES ('database.is_neutralized','True') ON CONFLICT (key) DO UPDATE SET value='True';"
+echo "   ✓ staging re-neutralisé après migration (crons et mails désactivés)"
+
 BASEV="$(docker exec "$PG" psql -U odoo -d "$STG" -tAc "SELECT latest_version FROM ir_module_module WHERE name='base';" | tr -d '[:space:]')"
 case "$BASEV" in 19.0*) echo "   ✓ SCHÉMA MIGRÉ : base=${BASEV}" ;; *) die "schéma non migré (base=${BASEV:-?}) — analyser ${LOG}" ;; esac
 
@@ -254,7 +263,11 @@ chk(){ if [ "$2" = "$3" ] || { [ "$3" = ">0" ] && [ "${2:-0}" -gt 0 ] 2>/dev/nul
 echo "   ── Contrôles ──"
 chk "santé conteneur"        "${H:-?}"                "healthy"
 chk "page de connexion"      "$(c /web/login)"        "200"
-DOC_CODE="$(c /doc)"; J2_CODE="$(c /json/2/res.users/search_read)"
+DOC_CODE="$(c /doc)"
+# /json/2/<modèle>/<méthode> n'accepte QUE POST : une sonde GET retombe sur la
+# route attrape-tout qui renvoie un 404 délibéré. On interroge donc en POST ;
+# sans jeton Bearer, la réponse attendue est 401 (auth requise) — jamais 404.
+J2_CODE="$(docker exec kaydan-odoo19 sh -c "curl -s -o /dev/null -w '%{http_code}' -X POST -H 'Content-Type: application/json' -d '{}' http://localhost:8069/json/2/res.users/search_read" 2>/dev/null)"
 [ -n "$DOC_CODE" ] && [ "$DOC_CODE" != "404" ] && echo "   ✓ route /doc présente (HTTP ${DOC_CODE} = auth requise, attendu)" \
   || { echo "   ✗ route /doc absente (HTTP ${DOC_CODE:-?})"; FAILED=$((FAILED+1)); }
 [ -n "$J2_CODE" ] && [ "$J2_CODE" != "404" ] && echo "   ✓ route /json/2 présente (HTTP ${J2_CODE} = auth requise, attendu)" \
