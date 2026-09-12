@@ -141,7 +141,13 @@ services:
       - traefik.http.routers.odoo.tls=true
       - traefik.http.routers.odoo.tls.certresolver=letsencrypt
       - traefik.http.routers.odoo.service=odoo
-      - traefik.http.routers.odoo.middlewares=kaydan-sec@docker,kaydan-compress@docker,kaydan-ratelimit@docker
+      # ⚠ kaydan-compress RETIRÉ du routeur Odoo (2026-09-12) : le bundle
+      # web.assets_web.min.js (6 Mo) arrivait TRONQUÉ au navigateur, provoquant
+      # "SyntaxError: Unexpected end of input" et un client web entièrement
+      # blanc. Odoo compresse déjà lui-même ses assets ; la double compression
+      # via Traefik altérait la réponse. Le middleware reste défini et
+      # disponible pour les autres services.
+      - traefik.http.routers.odoo.middlewares=kaydan-sec@docker,kaydan-ratelimit@docker
       - traefik.http.services.odoo.loadbalancer.server.port=8069
       - traefik.http.services.odoo.loadbalancer.sticky.cookie=true
       - traefik.http.services.odoo.loadbalancer.sticky.cookie.name=kaydan_affinity
