@@ -69,18 +69,33 @@ if [ -n "$TO_UPGRADE" ]; then
 fi
 
 echo "6/6 — Application"
+restart_odoo(){ docker compose -p "$PROJECT" up -d --no-deps odoo >/dev/null 2>&1 || docker start "$ODOO" >/dev/null 2>&1; }
+
 if [ -n "$TO_INSTALL" ]; then
   echo "     → arrêt d'Odoo puis installation dédiée : ${TO_INSTALL}"
+  # GARANTIE ABSOLUE : si l'installation échoue (le script est en `set -e`),
+  # Odoo doit être relancé malgré tout — sinon la PRODUCTION reste arrêtée.
+  trap 'restart_odoo' EXIT INT TERM
   docker compose -p "$PROJECT" stop odoo >/dev/null 2>&1
   # Remettre à 'uninstalled' les états transitoires d'une tentative précédente,
   # sinon Odoo considère le module comme déjà pris en charge.
   ins="'$(printf '%s' "$TO_INSTALL" | sed "s/,/','/g")'"
   docker exec "$PG" psql -U odoo -d "$DB" -c \
     "UPDATE ir_module_module SET state='uninstalled' WHERE name IN (${ins}) AND state='to install';" >/dev/null
+  # Sortie dans un fichier : un pipe + `set -o pipefail` ferait échouer le
+  # script AVANT le redémarrage d'Odoo.
+  ILOG="/tmp/install_$(date +%Y%m%d_%H%M%S).log"
+  INSTALL_RC=0
   docker compose -p "$PROJECT" run --rm --no-deps odoo \
-    odoo -d "$DB" -i "$TO_INSTALL" --stop-after-init --no-http --workers=0 --max-cron-threads=0 2>&1 \
-    | grep -iE "loading module|module .* loaded|ERROR|CRITICAL|Traceback|Modules loaded" | tail -25
-  docker compose -p "$PROJECT" up -d --no-deps odoo >/dev/null 2>&1
+    odoo -d "$DB" -i "$TO_INSTALL" --stop-after-init --no-http --workers=0 --max-cron-threads=0 \
+    > "$ILOG" 2>&1 || INSTALL_RC=$?
+  grep -iE "Loading module|module .* loaded|ERROR|CRITICAL|Traceback|does not exist|Modules loaded" "$ILOG" | tail -20
+  restart_odoo
+  trap - EXIT INT TERM
+  if [ "$INSTALL_RC" != "0" ]; then
+    echo "     ❌ installation en échec (code ${INSTALL_RC}) — Odoo a été RELANCÉ."
+    echo "        Journal complet : ${ILOG}"
+  fi
 else
   echo "     → redémarrage simple (mises à niveau uniquement)"
   docker restart "$ODOO" >/dev/null

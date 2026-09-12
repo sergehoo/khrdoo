@@ -1,5 +1,6 @@
 id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
 ki_hr_employee,kinsight.hr.employee.read,hr.model_hr_employee,kaydan_kinsight.group_kinsight_readonly,1,0,0,0
+ki_hr_version,kinsight.hr.version.read,hr.model_hr_version,kaydan_kinsight.group_kinsight_readonly,1,0,0,0
 ki_hr_employee_public,kinsight.hr.employee.public.read,hr.model_hr_employee_public,kaydan_kinsight.group_kinsight_readonly,1,0,0,0
 ki_hr_department,kinsight.hr.department.read,hr.model_hr_department,kaydan_kinsight.group_kinsight_readonly,1,0,0,0
 ki_hr_job,kinsight.hr.job.read,hr.model_hr_job,kaydan_kinsight.group_kinsight_readonly,1,0,0,0

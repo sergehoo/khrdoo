@@ -22,3 +22,17 @@ class HrVersion(models.Model):
     employee_type = fields.Selection(
         groups="hr.group_hr_user,kaydan_kinsight.group_kinsight_readonly"
     )
+
+
+class HrEmployee(models.Model):
+    _inherit = "hr.employee"
+
+    # Odoo 19 : toute lecture d'un champ délégué (department_id, job_id,
+    # job_title, employee_type) passe par version_id, lui-même restreint à
+    # hr.group_hr_user. Sans cette ouverture, K-Insight reçoit un 403 sur
+    # TOUT hr.employee.search_read. version_id n'est qu'une clé étrangère :
+    # les 47 champs sensibles de hr.version restent protégés individuellement.
+    # ⚠ Ce champ N'EXISTE PAS en Odoo 18 — d'où sa présence dans l'overlay.
+    version_id = fields.Many2one(
+        groups="hr.group_hr_user,kaydan_kinsight.group_kinsight_readonly"
+    )

@@ -161,6 +161,15 @@ cp -a migration19/kaydan_hr/models/hr_version.py addons19/kaydan_hr/models/  || 
 cp -a migration19/kaydan_hr/data/ir_cron_data.xml addons19/kaydan_hr/data/   || die "overlay : ir_cron_data.xml"
 sed -i 's/from \. import hr_contract/from . import hr_version/' addons19/kaydan_hr/models/__init__.py || die "overlay : models/__init__.py"
 sed -i 's/\["hr", "hr_contract"\]/["hr"]/' addons19/kaydan_hr/__manifest__.py || die "overlay : manifeste"
+# kaydan_kinsight : hr.version et hr.employee.version_id n'existent qu'en 19.
+# Le module de base en est dépourvu (sinon il casse l'installation en 18) ;
+# l'overlay les rétablit pour la cible 19.
+if [ -d migration19/kaydan_kinsight ]; then
+  cp -a migration19/kaydan_kinsight/models/hr_version.py addons19/kaydan_kinsight/models/     || die "overlay kinsight : hr_version.py"
+  cp -a migration19/kaydan_kinsight/models/__init__.py addons19/kaydan_kinsight/models/       || die "overlay kinsight : __init__.py"
+  cp -a migration19/kaydan_kinsight/security/ir.model.access.csv addons19/kaydan_kinsight/security/ || die "overlay kinsight : ACL"
+  echo "   ✓ overlay kaydan_kinsight (hr.version + version_id rétablis pour la 19)"
+fi
 grep -q 'hr_contract' addons19/kaydan_hr/__manifest__.py && die "manifeste kaydan_hr NON porté (hr_contract encore présent)"
 
 # 5c. Versions des manifestes 18.0.x -> 19.0.x
