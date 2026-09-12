@@ -116,7 +116,9 @@ rotate "$WEEKLY_DIR"  "$RET_W"
 rotate "$MONTHLY_DIR" "$RET_M"
 
 # --- 9. Envoi vers MinIO / S3 ------------------------------------------------
-if [ "${BACKUP_S3_ENABLED:-false}" = "true" ]; then
+if [ "${BACKUP_S3_ENABLED:-false}" = "true" ] && ! command -v mc >/dev/null 2>&1; then
+  log "  ⚠ client 'mc' absent de l'image : envoi S3 IGNORÉ (l'archive locale est bien créée)"
+elif [ "${BACKUP_S3_ENABLED:-false}" = "true" ]; then
   log "  → envoi vers ${BACKUP_S3_ENDPOINT}/${BACKUP_S3_BUCKET}"
   mc alias set kaydan "${BACKUP_S3_ENDPOINT}" "${MINIO_ROOT_USER}" "${MINIO_ROOT_PASSWORD}" >/dev/null 2>&1
   mc mb --ignore-existing "kaydan/${BACKUP_S3_BUCKET}" >/dev/null 2>&1 || true
