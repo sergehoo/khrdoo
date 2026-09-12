@@ -42,47 +42,67 @@ echo "4/6 — Purge des assets en cache (régénération propre)…"
 docker exec "$PG" psql -U odoo -d "$DB" -c \
   "DELETE FROM ir_attachment WHERE url LIKE '/web/assets/%';" >/dev/null
 
-echo "5/6 — Marquage des modules (install si absent, upgrade si présent) : ${MODULES}"
-# Construit la liste SQL 'a','b','c' de façon robuste (indépendant du shell)
-mods_sql="'$(printf '%s' "$MODULES" | sed "s/,/','/g")'"
-# Les DÉPENDANCES non installées doivent l'être aussi : marquer uniquement le
-# module demandé le laisse bloqué en 'to install' si une dépendance manque
-# (cas vu le 12/09 : kaydan_hr dépend de hr_contract, non installé).
-docker exec "$PG" psql -U odoo -d "$DB" -c \
-  "WITH RECURSIVE cible AS (
-       SELECT id, name FROM ir_module_module WHERE name IN (${mods_sql})
-     UNION
-       SELECT m.id, m.name
-       FROM cible c
-       JOIN ir_module_module_dependency d ON d.module_id = c.id
-       JOIN ir_module_module m ON m.name = d.name
-   )
-   UPDATE ir_module_module SET state='to install'
-   WHERE id IN (SELECT id FROM cible) AND state='uninstalled';" >/dev/null
+echo "5/6 — Analyse des modules demandés : ${MODULES}"
+# ⚠ FAIT VÉRIFIÉ DANS LE CŒUR D'ODOO (odoo/modules/loading.py) :
+#   load_marked_modules(['installed','to upgrade','to remove'])  -> TOUJOURS
+#   load_marked_modules(['to install'])                          -> SEULEMENT si -i/-u
+# Autrement dit : marquer 'to upgrade' en SQL + redémarrer SUFFIT pour mettre à
+# jour un module déjà installé, mais n'INSTALLERA JAMAIS un module absent.
+# Les installations passent donc par un processus dédié `-i`, Odoo étant arrêté
+# (un second processus Odoo pendant que le premier sert provoque des
+# « could not serialize access » sur ir_module_module).
+TO_UPGRADE=""; TO_INSTALL=""
+for m in $(printf '%s' "$MODULES" | tr ',' ' '); do
+  st="$(docker exec "$PG" psql -U odoo -d "$DB" -tAc \
+        "SELECT state FROM ir_module_module WHERE name='${m}';" 2>/dev/null | tr -d '[:space:]')"
+  case "$st" in
+    installed) TO_UPGRADE="${TO_UPGRADE}${TO_UPGRADE:+,}${m}"; echo "     ${m} : installé -> mise à niveau" ;;
+    ""|uninstalled|"to install") TO_INSTALL="${TO_INSTALL}${TO_INSTALL:+,}${m}"; echo "     ${m} : absent -> INSTALLATION" ;;
+    *) echo "     ${m} : état '${st}' -> installation forcée"; TO_INSTALL="${TO_INSTALL}${TO_INSTALL:+,}${m}" ;;
+  esac
+done
 
-docker exec "$PG" psql -U odoo -d "$DB" -c \
-  "UPDATE ir_module_module SET state='to upgrade'
-   WHERE name IN (${mods_sql}) AND state='installed';" >/dev/null
+if [ -n "$TO_UPGRADE" ]; then
+  ups="'$(printf '%s' "$TO_UPGRADE" | sed "s/,/','/g")'"
+  docker exec "$PG" psql -U odoo -d "$DB" -c \
+    "UPDATE ir_module_module SET state='to upgrade' WHERE name IN (${ups}) AND state='installed';" >/dev/null
+fi
 
-echo "     Modules et dépendances marqués :"
-docker exec "$PG" psql -U odoo -d "$DB" -tAc \
-  "SELECT '       '||name||' -> '||state FROM ir_module_module
-   WHERE state IN ('to install','to upgrade') ORDER BY name;"
-
-echo "6/6 — Redémarrage Odoo SEUL (applique la MAJ + reconstruit les assets)…"
-docker restart "$ODOO" >/dev/null
-echo "     Attente du chargement du registre…"
-sleep 8
-
-pending="$(docker exec "$PG" psql -U odoo -d "$DB" -tAc \
-  "SELECT count(*) FROM ir_module_module WHERE state NOT IN ('installed','uninstalled','uninstallable');" | tr -d '[:space:]')"
-
-echo "--------------------------------------------------------------"
-if [ "$pending" = "0" ]; then
-  echo "✅ Déploiement OK. Modules en état transitoire : 0"
-  echo "   Fais un HARD REFRESH navigateur : Ctrl/Cmd + Shift + R"
+echo "6/6 — Application"
+if [ -n "$TO_INSTALL" ]; then
+  echo "     → arrêt d'Odoo puis installation dédiée : ${TO_INSTALL}"
+  docker compose -p "$PROJECT" stop odoo >/dev/null 2>&1
+  # Remettre à 'uninstalled' les états transitoires d'une tentative précédente,
+  # sinon Odoo considère le module comme déjà pris en charge.
+  ins="'$(printf '%s' "$TO_INSTALL" | sed "s/,/','/g")'"
+  docker exec "$PG" psql -U odoo -d "$DB" -c \
+    "UPDATE ir_module_module SET state='uninstalled' WHERE name IN (${ins}) AND state='to install';" >/dev/null
+  docker compose -p "$PROJECT" run --rm --no-deps odoo \
+    odoo -d "$DB" -i "$TO_INSTALL" --stop-after-init --no-http --workers=0 --max-cron-threads=0 2>&1 \
+    | grep -iE "loading module|module .* loaded|ERROR|CRITICAL|Traceback|Modules loaded" | tail -25
+  docker compose -p "$PROJECT" up -d --no-deps odoo >/dev/null 2>&1
 else
-  echo "⚠ ${pending} module(s) encore en état transitoire — vérifie les logs :"
-  echo "   docker logs --tail 60 ${ODOO}"
+  echo "     → redémarrage simple (mises à niveau uniquement)"
+  docker restart "$ODOO" >/dev/null
+fi
+
+echo "     Attente du chargement du registre…"
+for i in $(seq 1 36); do
+  sleep 5
+  H="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$ODOO" 2>/dev/null)"
+  [ "$H" = "healthy" ] && break
+done
+PEND="$(docker exec "$PG" psql -U odoo -d "$DB" -tAc \
+  "SELECT count(*) FROM ir_module_module WHERE state NOT IN ('installed','uninstalled','uninstallable');" 2>/dev/null | tr -d '[:space:]')"
+echo "--------------------------------------------------------------"
+if [ "${PEND:-1}" = "0" ]; then
+  echo "✅ Déploiement OK — santé=${H:-?}"
+  docker exec "$PG" psql -U odoo -d "$DB" -tAc \
+    "SELECT '   '||name||' : '||state||' ('||latest_version||')' FROM ir_module_module WHERE name LIKE 'kaydan%' ORDER BY name;"
+else
+  echo "⚠ ${PEND} module(s) encore en état transitoire :"
+  docker exec "$PG" psql -U odoo -d "$DB" -tAc \
+    "SELECT '   '||name||' -> '||state FROM ir_module_module WHERE state NOT IN ('installed','uninstalled','uninstallable');"
+  echo "   Journal : docker logs --tail 60 ${ODOO}"
 fi
 echo "--------------------------------------------------------------"
