@@ -15,7 +15,7 @@
 #   2. Copie base   kaydan -> stg19
 #   3. Copie filestore -> volume kaydan-odoo19-data
 #   4. Neutralisation du staging (crons + serveurs de mail)
-#   5. addons19/ : copie + `odoo upgrade_code` + overlay migration19/
+#   5. addons19/ : copie des modules custom + `odoo upgrade_code`
 #   6. config/odoo/odoo19.conf (dbfilter ^stg19$)
 #   7. OpenUpgrade : conversion du schéma + mise à jour de tous les modules
 #   8. Démarrage du staging + CONTRÔLES automatisés
@@ -31,7 +31,7 @@ PG="kaydan-postgres"
 DB="kaydan"
 STG="stg19"                      # ⚠ ne doit PAS matcher ^kaydan.*$
 OU_DIR="openupgrade19"
-MODULES="kaydan_branding kaydan_hr_dashboard kaydan_api kaydan_hr kaydan_kinsight"
+MODULES="kaydan_branding kaydan_hr_dashboard kaydan_api"
 LOG="/tmp/openupgrade19_$(date +%Y%m%d_%H%M%S).log"
 
 cd "$CODE_DIR" || { echo "❌ ${CODE_DIR} introuvable"; exit 1; }
@@ -81,7 +81,6 @@ EOF
 fi
 # d) sources indispensables
 [ -f config/odoo/odoo.conf ] || die "config/odoo/odoo.conf absent — lancer scripts/tune.sh"
-[ -d migration19/kaydan_hr ] || die "migration19/ absent — portage hr.contract→hr.version impossible"
 for m in $MODULES; do [ -d "addons/${m}" ] || die "addons/${m} absent du dépôt"; done
 # e) OCA
 OCA_N="$(ls -1 addons/oca 2>/dev/null | grep -v -e '^\.gitkeep$' -e '^README.md$' | wc -l | tr -d ' ')"
@@ -154,23 +153,10 @@ docker run --rm -v "$PWD/addons19":/work --entrypoint bash odoo:19 -lc \
   "set -o pipefail; odoo --addons-path=/work upgrade_code --from 18.0 --to 19.0 --glob 'kaydan_*/**/*' 2>&1 | tail -15" \
   || die "odoo upgrade_code a échoué"
 
-# 5b. Overlay de portage manuel (ce que l'outil ne peut pas deviner)
-echo "   → overlay migration19/ (hr.contract -> hr.version)"
-rm -f addons19/kaydan_hr/models/hr_contract.py                              || die "overlay : suppression hr_contract.py"
-cp -a migration19/kaydan_hr/models/hr_version.py addons19/kaydan_hr/models/  || die "overlay : hr_version.py"
-cp -a migration19/kaydan_hr/data/ir_cron_data.xml addons19/kaydan_hr/data/   || die "overlay : ir_cron_data.xml"
-sed -i 's/from \. import hr_contract/from . import hr_version/' addons19/kaydan_hr/models/__init__.py || die "overlay : models/__init__.py"
-sed -i 's/\["hr", "hr_contract"\]/["hr"]/' addons19/kaydan_hr/__manifest__.py || die "overlay : manifeste"
-# kaydan_kinsight : hr.version et hr.employee.version_id n'existent qu'en 19.
-# Le module de base en est dépourvu (sinon il casse l'installation en 18) ;
-# l'overlay les rétablit pour la cible 19.
-if [ -d migration19/kaydan_kinsight ]; then
-  cp -a migration19/kaydan_kinsight/models/hr_version.py addons19/kaydan_kinsight/models/     || die "overlay kinsight : hr_version.py"
-  cp -a migration19/kaydan_kinsight/models/__init__.py addons19/kaydan_kinsight/models/       || die "overlay kinsight : __init__.py"
-  cp -a migration19/kaydan_kinsight/security/ir.model.access.csv addons19/kaydan_kinsight/security/ || die "overlay kinsight : ACL"
-  echo "   ✓ overlay kaydan_kinsight (hr.version + version_id rétablis pour la 19)"
-fi
-grep -q 'hr_contract' addons19/kaydan_hr/__manifest__.py && die "manifeste kaydan_hr NON porté (hr_contract encore présent)"
+# 5b. (Plus d'overlay de portage : kaydan_hr et kaydan_kinsight ont été retirés
+#      du projet le 2026-09-12. Les modules restants — kaydan_branding,
+#      kaydan_hr_dashboard, kaydan_api — sont compatibles 18 ET 19 tels quels,
+#      `odoo upgrade_code` ne trouvant rien à réécrire.)
 
 # 5c. Versions des manifestes 18.0.x -> 19.0.x
 find addons19 -name "__manifest__.py" -exec sed -i 's/"18\.0\./"19.0./' {} \;
@@ -281,7 +267,6 @@ chk "groupes/ACL"            "$(q 'SELECT count(*) FROM ir_model_access;')"     
 chk "modules rpc+api_doc"    "$(q "SELECT count(*) FROM ir_module_module WHERE name IN ('rpc','api_doc') AND state='installed';")" "2"
 chk "hr.version (contrats)"  "$(q "SELECT count(*) FROM ir_model WHERE model='hr.version';")" "1"
 chk "hr.contract supprimé"   "$(q "SELECT count(*) FROM ir_model WHERE model='hr.contract';")" "0"
-chk "kaydan_kinsight"        "$(q "SELECT count(*) FROM ir_module_module WHERE name='kaydan_kinsight' AND state='installed';")" "1"
 echo "   Modules Kaydan  : $(q "SELECT string_agg(name||':'||state,' ') FROM ir_module_module WHERE name LIKE 'kaydan%';")"
 echo "   Crons actifs (0 attendu) : $(q 'SELECT count(*) FROM ir_cron WHERE active;')"
 echo "   Erreurs au démarrage     : $(docker logs --since 5m kaydan-odoo19 2>&1 | grep -cE 'ERROR|CRITICAL')"

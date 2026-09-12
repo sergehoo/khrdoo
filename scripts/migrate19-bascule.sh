@@ -84,7 +84,6 @@ PROD_PENDING="$(docker exec "$PG" psql -U odoo -d "$DB" -tAc \
 [ "${PROD_PENDING:-1}" = "0" ] || fail "prod instable (${PROD_PENDING} modules en transition) — corriger d'abord"
 [ -d "$OU_DIR" ] || fail "OpenUpgrade absent (${OU_DIR}) — lancer d'abord le staging"
 [ -d addons19 ] || fail "addons portés absents (addons19/) — lancer d'abord le staging"
-[ -d addons19/kaydan_kinsight ] || fail "addons19/kaydan_kinsight absent — relancer le staging (module requis par K-Insight)"
 # GARDE-FOU ANTI-REJEU : rejouer OpenUpgrade sur une base déjà en 19 corrompt
 # les données tout en affichant un faux succès.
 PROD_VER0="$(docker exec "$PG" psql -U odoo -d "$DB" -tAc \

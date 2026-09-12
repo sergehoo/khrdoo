@@ -16,8 +16,12 @@
 #     export KINSIGHT_KEY="<clé API de l'utilisateur kinsight>"
 #     bash scripts/kinsight-api-test.sh
 #
-#  ⚠ La clé API se crée dans l'UI : se connecter en tant que 'kinsight'
-#    → Préférences → Sécurité du compte → Nouvelle clé API (durée ≤ 3 mois).
+#  ⚠ 2026-09-12 : le module kaydan_kinsight (utilisateur + groupe dédiés) a été
+#    RETIRÉ du projet. Ce script reste valable : il teste l'API NATIVE d'Odoo 19
+#    avec la clé de n'importe quel utilisateur. Créez la clé dans l'UI :
+#    Préférences → Sécurité du compte → Nouvelle clé API (durée ≤ 3 mois).
+#    Les tests négatifs restent pertinents : ils mesurent ce que la clé fournie
+#    peut réellement atteindre (écriture, salaires, contrats, CNPS).
 #    Ne JAMAIS committer la clé ni l'exposer côté navigateur (backend seulement).
 # =============================================================================
 set -uo pipefail

@@ -111,7 +111,7 @@ FAMILIES = [
     ("FORMATION",   ["slides","hr_skills_slides","survey"], []),
     ("PRÉSENCES",   ["hr_attendance"],                      ["hr.attendance"]),
     ("FRAIS",       ["hr_expense"],                         ["hr.expense"]),
-    ("KAYDAN",      ["kaydan_hr","kaydan_kinsight","kaydan_hr_dashboard","kaydan_api"], ["hr.employee.transfer"]),
+    ("KAYDAN",      ["kaydan_hr_dashboard","kaydan_api"],  []),
 ]
 SENSITIVE = {'wage','contract_wage','cnps_number','ssnid','identification_id','passport_id',
              'bank_account_id','private_street','private_email','private_phone','birthday',
