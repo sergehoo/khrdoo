@@ -59,18 +59,19 @@ fi
 
 # ── 1. Identité de la clé (res.users) ───────────────────────────────────────
 echo "── 1. Identité de la clé API"
-code="$(call res.users search_read '{"domain": [["login","=","kinsight@kaydangroupe.com"]], "fields": ["name","login","company_id","company_ids"], "limit": 1}')"
+# Aucun utilisateur codé en dur : on mesure ce que la clé peut RÉELLEMENT lire.
+code="$(call res.users search_read '{"domain": [], "fields": ["name","login","company_id"], "limit": 5}')"
 if [ "$code" = "200" ]; then
-  ok "identité lisible : $(jq_py "d[0]['login'] if d else 'aucun résultat'") · société=$(jq_py "d[0]['company_id'][1] if d and d[0].get('company_id') else '?'")"
-  echo "      sociétés autorisées : $(jq_py "len(d[0].get('company_ids',[])) if d else 0")"
+  ok "res.users lisible — $(jq_py 'len(d)') utilisateur(s) visible(s) avec cette clé"
+  echo "      exemples : $(jq_py "', '.join(r.get('login','?') for r in d[:3]) if d else '—'")"
 else no "lecture res.users impossible : HTTP ${code}"; fi
 
 # ── 2. hr.employee search_read ──────────────────────────────────────────────
 echo "── 2. hr.employee (référentiel employés)"
-code="$(call hr.employee search_read '{"domain": [], "fields": ["name","matricule","department_id","job_id","company_id","work_email","employee_type","parent_id"], "limit": 5, "order": "name"}')"
+code="$(call hr.employee search_read '{"domain": [], "fields": ["name","department_id","job_id","company_id","work_email","employee_type","parent_id"], "limit": 5, "order": "name"}')"
 if [ "$code" = "200" ]; then
   ok "search_read OK — $(jq_py 'len(d)') enregistrement(s) ; champs renvoyés : $(jq_py "', '.join(sorted(d[0].keys())) if d else '—'")"
-  echo "      exemple : $(jq_py "d[0].get('name','?') + ' / ' + str(d[0].get('matricule')) if d else '—'")"
+  echo "      exemple : $(jq_py "(d[0].get('name','?') + ' — ' + str((d[0].get('department_id') or ['','(sans dept)'])[1])) if d else '—'")"
 else no "hr.employee search_read : HTTP ${code} — $(head -c 200 "$TMP/out")"; fi
 
 code="$(call hr.employee search_count '{"domain": [["active","=",true]]}')"
@@ -160,7 +161,7 @@ if [ "$code" = "200" ] && [ "$(jq_py "('department_id' in d[0]) if d else False"
   ok "champs délégués (department_id/job_id via hr.version) lisibles — mapping K-Insight opérationnel"
 else no "champs délégués illisibles (HTTP ${code}) — vérifier l'ACL de lecture sur hr.version"; fi
 
-neg_field hr.employee cnps_number "numéro CNPS"
+neg_field hr.employee ssnid "numéro de sécurité sociale"
 
 # Odoo renvoie la clé `password` mais TOUJOURS vide : l'échec n'est réel que
 # si une valeur non vide sort.
