@@ -1,8 +1,11 @@
 # =============================================================================
 #  KAYDAN ERP — Stack de production
 #  Odoo 18 Community + OCA · PostgreSQL 16 · MinIO
-#  Monitoring léger (Prometheus/Grafana + node/pg exporters) · Backup chiffré
+#  Backup chiffré vers MinIO (stockage hors-machine des sauvegardes)
 #  (Allègement 2026-08-20 : Redis/Watchtower/cAdvisor/Loki/Promtail retirés)
+#  (Allègement 2026-09-12 : Prometheus/Grafana/pgAdmin/exporters retirés —
+#   Grafana et Prometheus étaient déjà 'exited', vraisemblablement faute de
+#   mémoire. Reste le strict nécessaire : Odoo, PostgreSQL, backup, MinIO.)
 #  SSO : Keycloak EXTERNE (déjà en prod) — Odoo s'y connecte en OIDC, non déployé ici
 #
 #  Cible        : Dokploy + Traefik (Ubuntu 24.04 VPS)
@@ -43,14 +46,8 @@ volumes:
     name: kaydan-postgres-data
   odoo-data:
     name: kaydan-odoo-data          # /var/lib/odoo : filestore + sessions
-  pgadmin-data:
-    name: kaydan-pgadmin-data
   minio-data:
     name: kaydan-minio-data
-  prometheus-data:
-    name: kaydan-prometheus-data
-  grafana-data:
-    name: kaydan-grafana-data
 
 services:
 
@@ -69,7 +66,9 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD manquant}
       # Variables consommées par les scripts d'init (config/postgres/init/*)
       PG_EXPORTER_USER: ${PG_EXPORTER_USER:-odoo_exporter}
-      PG_EXPORTER_PASSWORD: ${PG_EXPORTER_PASSWORD:?PG_EXPORTER_PASSWORD manquant}
+      # Conservé pour les scripts d'init existants (rôle de supervision) ;
+      # plus aucun exporter ne tourne, la variable n'est donc plus bloquante.
+      PG_EXPORTER_PASSWORD: ${PG_EXPORTER_PASSWORD:-unused}
       TZ: ${TZ:-UTC}
       PGDATA: /var/lib/postgresql/data/pgdata
     volumes:
@@ -164,42 +163,6 @@ services:
     logging: *default-logging
 
   # ===========================================================================
-  #  pgAdmin — administration PostgreSQL
-  # ===========================================================================
-  pgadmin:
-    image: dpage/pgadmin4:latest
-    container_name: kaydan-pgadmin
-    restart: unless-stopped
-    <<: *hardening
-    depends_on:
-      postgres:
-        condition: service_healthy
-    environment:
-      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:?manquant}
-      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:?manquant}
-      PGADMIN_CONFIG_ENHANCED_COOKIE_PROTECTION: "True"
-      PGADMIN_CONFIG_LOGIN_BANNER: "\"Accès réservé — Kaydan ERP\""
-      PGADMIN_CONFIG_CONSOLE_LOG_LEVEL: "30"
-      PGADMIN_LISTEN_PORT: "80"
-      SCRIPT_NAME: ""
-    volumes:
-      - pgadmin-data:/var/lib/pgadmin
-      - ./config/pgadmin/servers.json:/pgadmin4/servers.json:ro
-    networks:
-      - internal
-      - dokploy-network
-    labels:
-      - traefik.enable=true
-      - traefik.docker.network=dokploy-network
-      - traefik.http.routers.pgadmin.rule=Host(`pgadmin.${DOMAIN}`)
-      - traefik.http.routers.pgadmin.entrypoints=websecure
-      - traefik.http.routers.pgadmin.tls=true
-      - traefik.http.routers.pgadmin.tls.certresolver=letsencrypt
-      - traefik.http.routers.pgadmin.middlewares=kaydan-sec@docker,kaydan-ratelimit@docker
-      - traefik.http.services.pgadmin.loadbalancer.server.port=80
-    logging: *default-logging
-
-  # ===========================================================================
   #  MinIO — stockage objet S3 (cible des sauvegardes chiffrées)
   # ===========================================================================
   minio:
@@ -283,99 +246,3 @@ services:
       - internal
     logging: *default-logging
 
-  # ===========================================================================
-  #  MONITORING — Prometheus
-  # ===========================================================================
-  prometheus:
-    image: prom/prometheus:latest
-    container_name: kaydan-prometheus
-    restart: unless-stopped
-    <<: *hardening
-    command:
-      - --config.file=/etc/prometheus/prometheus.yml
-      - --storage.tsdb.path=/prometheus
-      - --storage.tsdb.retention.time=30d
-      - --web.enable-lifecycle
-    volumes:
-      - ./config/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - ./config/prometheus/alert.rules.yml:/etc/prometheus/alert.rules.yml:ro
-      - prometheus-data:/prometheus
-    networks:
-      - internal
-    logging: *default-logging
-
-  # ===========================================================================
-  #  MONITORING — Grafana
-  # ===========================================================================
-  grafana:
-    image: grafana/grafana:latest
-    container_name: kaydan-grafana
-    restart: unless-stopped
-    <<: *hardening
-    depends_on:
-      - prometheus
-    environment:
-      GF_SECURITY_ADMIN_USER: ${GF_SECURITY_ADMIN_USER:-admin}
-      GF_SECURITY_ADMIN_PASSWORD: ${GF_SECURITY_ADMIN_PASSWORD:?manquant}
-      GF_SERVER_ROOT_URL: https://grafana.${DOMAIN}
-      GF_SERVER_ENFORCE_DOMAIN: "false"
-      GF_USERS_ALLOW_SIGN_UP: "false"
-      GF_SECURITY_COOKIE_SECURE: "true"
-      GF_SECURITY_COOKIE_SAMESITE: strict
-      GF_ANALYTICS_REPORTING_ENABLED: "false"
-      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
-      TZ: ${TZ:-UTC}
-    volumes:
-      - grafana-data:/var/lib/grafana
-      - ./config/grafana/provisioning:/etc/grafana/provisioning:ro
-      - ./config/grafana/dashboards:/var/lib/grafana/dashboards:ro
-    networks:
-      - internal
-      - dokploy-network
-    labels:
-      - traefik.enable=true
-      - traefik.docker.network=dokploy-network
-      - traefik.http.routers.grafana.rule=Host(`grafana.${DOMAIN}`)
-      - traefik.http.routers.grafana.entrypoints=websecure
-      - traefik.http.routers.grafana.tls=true
-      - traefik.http.routers.grafana.tls.certresolver=letsencrypt
-      - traefik.http.routers.grafana.middlewares=kaydan-sec@docker
-      - traefik.http.services.grafana.loadbalancer.server.port=3000
-    logging: *default-logging
-
-  # ===========================================================================
-  #  MONITORING — node-exporter (métriques hôte)
-  # ===========================================================================
-  node-exporter:
-    image: prom/node-exporter:latest
-    container_name: kaydan-node-exporter
-    restart: unless-stopped
-    <<: *hardening
-    command:
-      - --path.rootfs=/host
-      - --collector.systemd
-      - --collector.processes
-    pid: host
-    volumes:
-      - /:/host:ro,rslave
-    networks:
-      - internal
-    logging: *default-logging
-
-  # ===========================================================================
-  #  MONITORING — postgres-exporter (métriques PostgreSQL)
-  # ===========================================================================
-  postgres-exporter:
-    image: prometheuscommunity/postgres-exporter:latest
-    container_name: kaydan-postgres-exporter
-    restart: unless-stopped
-    <<: *hardening
-    depends_on:
-      postgres:
-        condition: service_healthy
-    environment:
-      DATA_SOURCE_NAME: "postgresql://${PG_EXPORTER_USER:-odoo_exporter}:${PG_EXPORTER_PASSWORD}@postgres:5432/postgres?sslmode=disable"
-      TZ: ${TZ:-UTC}
-    networks:
-      - internal
-    logging: *default-logging
