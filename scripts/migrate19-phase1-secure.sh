@@ -231,18 +231,25 @@ if [ "$DO_RESTORE_TEST" = "1" ] && [ -n "${LAST:-}" ]; then
   # réécrire le mot de passe du rôle `odoo` du cluster de PRODUCTION.
   if docker exec -e RESTORE_ROLES=0 kaydan-backup \
        /scripts/restore.sh "$TESTDB" "$ARCH_IN_CT" "$DB" > "${OUT}/restore-test.txt" 2>&1; then
-    T_TABLES="$(docker exec "$PG" psql -U odoo -d "$TESTDB" -tAc "SELECT count(*) FROM information_schema.tables WHERE table_schema='public';" 2>/dev/null | tr -d '[:space:]')"
-    T_EMP="$(docker exec "$PG" psql -U odoo -d "$TESTDB" -tAc "SELECT count(*) FROM hr_employee;" 2>/dev/null | tr -d '[:space:]')"
-    T_USR="$(docker exec "$PG" psql -U odoo -d "$TESTDB" -tAc "SELECT count(*) FROM res_users;" 2>/dev/null | tr -d '[:space:]')"
-    P_TABLES="$(docker exec "$PG" psql -U odoo -d "$DB" -tAc "SELECT count(*) FROM information_schema.tables WHERE table_schema='public';" 2>/dev/null | tr -d '[:space:]')"
-    P_EMP="$(docker exec "$PG" psql -U odoo -d "$DB" -tAc "SELECT count(*) FROM hr_employee;" 2>/dev/null | tr -d '[:space:]')"
-    say "   Tables  : prod=${P_TABLES:-?}  restauré=${T_TABLES:-?}"
-    say "   Employés: prod=${P_EMP:-?}  restauré=${T_EMP:-?}   ·   Utilisateurs restaurés=${T_USR:-?}"
-    if [ -n "${T_TABLES:-}" ] && [ "$T_TABLES" = "$P_TABLES" ] && [ "${T_EMP:-none}" = "${P_EMP:-none}" ]; then
-      ok "RESTAURATION VALIDÉE (structure et volumétrie identiques)"
-    else
-      ko "restauration incohérente avec la prod → la sauvegarde n'est pas fiable"
-    fi
+    # On compare des tables qui existent TOUJOURS (une comparaison entre deux
+    # requêtes en échec — "?" = "?" — validerait une sauvegarde vide).
+    cnt(){ docker exec "$PG" psql -U odoo -d "$1" -tAc "$2" 2>/dev/null | tr -d '[:space:]'; }
+    T_TABLES="$(cnt "$TESTDB" "SELECT count(*) FROM information_schema.tables WHERE table_schema='public';")"
+    P_TABLES="$(cnt "$DB"     "SELECT count(*) FROM information_schema.tables WHERE table_schema='public';")"
+    T_USR="$(cnt "$TESTDB" 'SELECT count(*) FROM res_users;')"
+    P_USR="$(cnt "$DB"     'SELECT count(*) FROM res_users;')"
+    T_MOD="$(cnt "$TESTDB" "SELECT count(*) FROM ir_module_module WHERE state='installed';")"
+    P_MOD="$(cnt "$DB"     "SELECT count(*) FROM ir_module_module WHERE state='installed';")"
+    say "   Tables      : prod=${P_TABLES:-?}  restauré=${T_TABLES:-?}"
+    say "   Utilisateurs: prod=${P_USR:-?}  restauré=${T_USR:-?}"
+    say "   Modules     : prod=${P_MOD:-?}  restauré=${T_MOD:-?}"
+    VALID=1
+    for pair in "TABLES:${P_TABLES}:${T_TABLES}" "UTILISATEURS:${P_USR}:${T_USR}" "MODULES:${P_MOD}:${T_MOD}"; do
+      lbl="${pair%%:*}"; rest="${pair#*:}"; pv="${rest%%:*}"; tv="${rest##*:}"
+      case "$pv" in ''|*[!0-9]*) ko "comptage ${lbl} illisible côté PROD — validation impossible"; VALID=0; continue ;; esac
+      [ "$pv" = "$tv" ] || { ko "écart ${lbl} : prod=${pv} vs restauré=${tv}"; VALID=0; }
+    done
+    [ "$VALID" = "1" ] && ok "RESTAURATION VALIDÉE (tables, utilisateurs et modules identiques)"
     # Nettoyage de la base + filestore de test
     docker exec "$PG" dropdb -U odoo --if-exists "$TESTDB" >/dev/null 2>&1
     docker exec kaydan-backup sh -c "rm -rf /restore/odoo/filestore/${TESTDB}" >/dev/null 2>&1
@@ -253,6 +260,30 @@ if [ "$DO_RESTORE_TEST" = "1" ] && [ -n "${LAST:-}" ]; then
 else
   warn "test de restauration ignoré"
 fi
+
+# =============================================================================
+head2 "7bis. Cohérence des données métier"
+# =============================================================================
+# Une base quasi vierge passerait tous les contrôles techniques ci-dessus : on
+# vérifie explicitement que les données que l'on s'apprête à migrer EXISTENT.
+tbl(){ docker exec "$PG" psql -U odoo -d "$DB" -tAc "SELECT to_regclass('$1') IS NOT NULL;" 2>/dev/null | tr -d '[:space:]'; }
+rows(){ docker exec "$PG" psql -U odoo -d "$DB" -tAc "SELECT count(*) FROM $1;" 2>/dev/null | tr -d '[:space:]'; }
+for t in hr_employee hr_department res_company res_users; do
+  if [ "$(tbl "$t")" = "t" ]; then say "   ${t} : $(rows "$t") enregistrement(s)"
+  else say "   ${t} : TABLE ABSENTE (module non installé)"; fi
+done
+HR_OK="$(tbl hr_employee)"
+if [ "$HR_OK" = "t" ]; then
+  EMPN="$(rows hr_employee)"
+  [ "${EMPN:-0}" -gt 0 ] 2>/dev/null && ok "données RH présentes (${EMPN} employés)" \
+    || warn "module RH installé mais AUCUN employé — instance vide ?"
+else
+  ko "le module RH n'est pas installé sur '${DB}' : il n'y a aucune donnée RH à migrer.
+      → Vérifier qu'il s'agit bien de la base de production attendue AVANT toute migration."
+fi
+INST="$(docker exec "$PG" psql -U odoo -d "$DB" -tAc "SELECT count(*) FROM ir_module_module WHERE state='installed';" 2>/dev/null | tr -d '[:space:]')"
+say "   Modules installés : ${INST:-?}"
+[ "${INST:-0}" -lt 60 ] 2>/dev/null && warn "peu de modules installés (${INST}) — une base Odoo neuve en compte ~45 : s'agit-il d'une base réinitialisée ?"
 
 # =============================================================================
 head2 "8. Santé de l'instance"
