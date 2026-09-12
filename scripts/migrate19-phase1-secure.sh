@@ -202,6 +202,24 @@ else ko "espace libre insuffisant (${FREE_GB:-?} Go) — la migration duplique b
 # =============================================================================
 head2 "6. Sauvegarde complète (obligatoire)"
 # =============================================================================
+# ANTÉRIORITÉ : une sauvegarde créée à l'instant ne prouve pas que le système
+# de sauvegarde FONCTIONNE. Si le cron nocturne échoue en silence (montage
+# /scripts périmé), il n'existe aucun point de restauration en cas d'incident.
+PREV="$(ls -1t backups/daily/kaydan_*.gpg backups/daily/kaydan_*.gz 2>/dev/null | head -1)"
+NB_ARCH="$(ls -1 backups/daily/kaydan_* backups/weekly/kaydan_* backups/monthly/kaydan_* 2>/dev/null | wc -l | tr -d ' ')"
+say "   Archives déjà présentes : ${NB_ARCH:-0}"
+if [ -z "$PREV" ]; then
+  ko "AUCUNE sauvegarde antérieure : le cron de sauvegarde ne fonctionne pas.
+      → Aucun point de restauration n'existe en cas d'incident.
+      → Vérifier : docker exec kaydan-backup test -f /scripts/backup.sh ; docker logs kaydan-backup --tail 50"
+else
+  AGE_H=$(( ( $(date +%s) - $(date -r "$PREV" +%s 2>/dev/null || echo 0) ) / 3600 ))
+  if [ "$AGE_H" -gt 48 ]; then
+    ko "dernière sauvegarde vieille de ${AGE_H} h (${PREV}) — le cron nocturne ne tourne plus"
+  else
+    ok "sauvegarde récente présente (${AGE_H} h) : le cron fonctionne"
+  fi
+fi
 # Le conteneur backup monte ./scripts ; après un re-clone du dossier code par
 # Dokploy, il garde l'ANCIEN inode du répertoire -> /scripts/backup.sh
 # « no such file or directory ». On le recrée avant de s'en servir.
