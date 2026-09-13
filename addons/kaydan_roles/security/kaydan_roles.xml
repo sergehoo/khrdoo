@@ -1,0 +1,226 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Rôles métier Kaydan — chaque rôle est un res.groups qui HÉRITE (implied_ids)
+  des groupes standards d'Odoo. Aucun droit nouveau n'est inventé.
+
+  Une CATÉGORIE par métier : Odoo affiche alors les niveaux d'un même métier
+  comme une liste déroulante unique dans la fiche utilisateur.
+
+  ⚠ Odoo 19 : res.groups.category_id devient privilege_id (res.groups.privilege).
+     Ce fichier est écrit pour Odoo 18, la version en production.
+-->
+<odoo>
+    <data noupdate="0">
+
+        <!-- ══ CATÉGORIES (une liste déroulante par métier) ══════════════ -->
+        <record id="cat_rh" model="ir.module.category">
+            <field name="name">Kaydan · Ressources humaines</field>
+            <field name="description">Niveau d'accès aux données du personnel.</field>
+            <field name="sequence">10</field>
+        </record>
+        <record id="cat_recrutement" model="ir.module.category">
+            <field name="name">Kaydan · Recrutement</field>
+            <field name="sequence">20</field>
+        </record>
+        <record id="cat_commercial" model="ir.module.category">
+            <field name="name">Kaydan · Commercial</field>
+            <field name="sequence">30</field>
+        </record>
+        <record id="cat_finance" model="ir.module.category">
+            <field name="name">Kaydan · Comptabilité et finance</field>
+            <field name="sequence">40</field>
+        </record>
+        <record id="cat_projet" model="ir.module.category">
+            <field name="name">Kaydan · Projets</field>
+            <field name="sequence">50</field>
+        </record>
+        <record id="cat_direction" model="ir.module.category">
+            <field name="name">Kaydan · Direction</field>
+            <field name="sequence">60</field>
+        </record>
+
+        <!-- ══ RESSOURCES HUMAINES ═══════════════════════════════════════ -->
+        <record id="group_rh_assistant" model="res.groups">
+            <field name="name">Assistant RH (N)</field>
+            <field name="category_id" ref="cat_rh"/>
+            <field name="comment">Gère les dossiers du personnel et les demandes
+                de congés au quotidien. Ne valide pas les contrats.</field>
+            <field name="implied_ids" eval="[(6, 0, [
+                ref('base.group_user'),
+                ref('hr.group_hr_user'),
+                ref('hr_holidays.group_hr_holidays_user'),
+            ])]"/>
+        </record>
+        <record id="group_rh_responsable" model="res.groups">
+            <field name="name">Responsable RH (N+1)</field>
+            <field name="category_id" ref="cat_rh"/>
+            <field name="comment">Encadre l'équipe RH : contrats des employés
+                dont il est responsable, approbation des notes de frais.</field>
+            <field name="implied_ids" eval="[(6, 0, [
+                ref('kaydan_roles.group_rh_assistant'),
+                ref('hr_contract.group_hr_contract_employee_manager'),
+                ref('hr_expense.group_hr_expense_team_approver'),
+                ref('hr_recruitment.group_hr_recruitment_user'),
+            ])]"/>
+        </record>
+        <record id="group_rh_directeur" model="res.groups">
+            <field name="name">Directeur RH (N+2)</field>
+            <field name="category_id" ref="cat_rh"/>
+            <field name="comment">Administre l'ensemble du domaine RH :
+                employés, contrats, congés, présences, frais, recrutement.</field>
+            <field name="implied_ids" eval="[(6, 0, [
+                ref('kaydan_roles.group_rh_responsable'),
+                ref('hr.group_hr_manager'),
+                ref('hr_contract.group_hr_contract_manager'),
+                ref('hr_holidays.group_hr_holidays_manager'),
+                ref('hr_attendance.group_hr_attendance_manager'),
+                ref('hr_expense.group_hr_expense_manager'),
+                ref('hr_recruitment.group_hr_recruitment_manager'),
+            ])]"/>
+        </record>
+
+        <!-- ══ RECRUTEMENT ═══════════════════════════════════════════════ -->
+        <record id="group_rec_charge" model="res.groups">
+            <field name="name">Chargé de recrutement (N)</field>
+            <field name="category_id" ref="cat_recrutement"/>
+            <field name="comment">Conduit les entretiens sur les postes qui lui
+                sont assignés.</field>
+            <field name="implied_ids" eval="[(6, 0, [
+                ref('base.group_user'),
+                ref('hr_recruitment.group_hr_recruitment_interviewer'),
+            ])]"/>
+        </record>
+        <record id="group_rec_responsable" model="res.groups">
+            <field name="name">Responsable recrutement (N+1)</field>
+            <field name="category_id" ref="cat_recrutement"/>
+            <field name="comment">Gère l'ensemble des candidatures et le
+                pipeline de recrutement.</field>
+            <field name="implied_ids" eval="[(6, 0, [
+                ref('kaydan_roles.group_rec_charge'),
+                ref('hr_recruitment.group_hr_recruitment_user'),
+                ref('survey.group_survey_user'),
+            ])]"/>
+        </record>
+
+        <!-- ══ COMMERCIAL ════════════════════════════════════════════════ -->
+        <record id="group_com_commercial" model="res.groups">
+            <field name="name">Commercial (N)</field>
+            <field name="category_id" ref="cat_commercial"/>
+            <field name="comment">Travaille sur ses propres opportunités,
+                devis et clients.</field>
+            <field name="implied_ids" eval="[(6, 0, [
+                ref('base.group_user'),
+                ref('sales_team.group_sale_salesman'),
+            ])]"/>
+        </record>
+        <record id="group_com_chef_ventes" model="res.groups">
+            <field name="name">Chef des ventes (N+1)</field>
+            <field name="category_id" ref="cat_commercial"/>
+            <field name="comment">Voit et pilote les dossiers de toute
+                l'équipe commerciale.</field>
+            <field name="implied_ids" eval="[(6, 0, [
+                ref('kaydan_roles.group_com_commercial'),
+                ref('sales_team.group_sale_salesman_all_leads'),
+            ])]"/>
+        </record>
+        <record id="group_com_directeur" model="res.groups">
+            <field name="name">Directeur commercial (N+2)</field>
+            <field name="category_id" ref="cat_commercial"/>
+            <field name="comment">Administre les ventes : équipes, objectifs,
+                configuration, campagnes.</field>
+            <field name="implied_ids" eval="[(6, 0, [
+                ref('kaydan_roles.group_com_chef_ventes'),
+                ref('sales_team.group_sale_manager'),
+            ])]"/>
+        </record>
+
+        <!-- ══ COMPTABILITÉ ET FINANCE ═══════════════════════════════════ -->
+        <record id="group_fin_assistant" model="res.groups">
+            <field name="name">Assistant comptable (N)</field>
+            <field name="category_id" ref="cat_finance"/>
+            <field name="comment">Saisit les factures clients et
+                fournisseurs.</field>
+            <field name="implied_ids" eval="[(6, 0, [
+                ref('base.group_user'),
+                ref('account.group_account_invoice'),
+            ])]"/>
+        </record>
+        <record id="group_fin_comptable" model="res.groups">
+            <field name="name">Comptable (N+1)</field>
+            <field name="category_id" ref="cat_finance"/>
+            <field name="comment">Tient la comptabilité courante et valide les
+                coordonnées bancaires.</field>
+            <field name="implied_ids" eval="[(6, 0, [
+                ref('kaydan_roles.group_fin_assistant'),
+                ref('account.group_validate_bank_account'),
+                ref('hr_expense.group_hr_expense_team_approver'),
+            ])]"/>
+        </record>
+        <record id="group_fin_directeur" model="res.groups">
+            <field name="name">Directeur financier (N+2)</field>
+            <field name="category_id" ref="cat_finance"/>
+            <field name="comment">Administre la comptabilité, clôture les
+                exercices et approuve toutes les notes de frais.</field>
+            <field name="implied_ids" eval="[(6, 0, [
+                ref('kaydan_roles.group_fin_comptable'),
+                ref('account.group_account_manager'),
+                ref('hr_expense.group_hr_expense_manager'),
+            ])]"/>
+        </record>
+
+        <!-- ══ PROJETS ═══════════════════════════════════════════════════ -->
+        <record id="group_prj_membre" model="res.groups">
+            <field name="name">Membre de projet (N)</field>
+            <field name="category_id" ref="cat_projet"/>
+            <field name="comment">Participe aux projets et met à jour ses
+                tâches.</field>
+            <field name="implied_ids" eval="[(6, 0, [
+                ref('base.group_user'),
+                ref('project.group_project_user'),
+            ])]"/>
+        </record>
+        <record id="group_prj_chef" model="res.groups">
+            <field name="name">Chef de projet (N+1)</field>
+            <field name="category_id" ref="cat_projet"/>
+            <field name="comment">Crée et pilote les projets, affecte les
+                tâches et suit l'avancement.</field>
+            <field name="implied_ids" eval="[(6, 0, [
+                ref('kaydan_roles.group_prj_membre'),
+                ref('project.group_project_manager'),
+            ])]"/>
+        </record>
+
+        <!-- ══ DIRECTION ═════════════════════════════════════════════════ -->
+        <record id="group_dir_assistant" model="res.groups">
+            <field name="name">Assistant de direction (N+1)</field>
+            <field name="category_id" ref="cat_direction"/>
+            <field name="comment">Vue transversale pour le secrétariat de
+                direction : personnel, projets, dossiers commerciaux. Ne
+                donne AUCUN droit d'administration ni accès à la
+                comptabilité.</field>
+            <field name="implied_ids" eval="[(6, 0, [
+                ref('base.group_user'),
+                ref('hr.group_hr_user'),
+                ref('project.group_project_user'),
+                ref('sales_team.group_sale_salesman_all_leads'),
+                ref('survey.group_survey_user'),
+            ])]"/>
+        </record>
+        <record id="group_dir_generale" model="res.groups">
+            <field name="name">Direction générale (N+2)</field>
+            <field name="category_id" ref="cat_direction"/>
+            <field name="comment">Accès complet à tous les métiers. N'inclut
+                volontairement PAS les droits techniques d'administration
+                (Paramètres, Droits d'accès), qui restent réservés à
+                l'administrateur système.</field>
+            <field name="implied_ids" eval="[(6, 0, [
+                ref('kaydan_roles.group_dir_assistant'),
+                ref('kaydan_roles.group_rh_directeur'),
+                ref('kaydan_roles.group_com_directeur'),
+                ref('kaydan_roles.group_fin_directeur'),
+                ref('kaydan_roles.group_prj_chef'),
+            ])]"/>
+        </record>
+
+    </data>
+</odoo>
